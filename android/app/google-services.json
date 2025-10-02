@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "489368992167",
+    "project_id": "biblioscan-e66fc",
+    "storage_bucket": "biblioscan-e66fc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:489368992167:android:9b75ce2a52db2616b75e82",
+        "android_client_info": {
+          "package_name": "com.example.biblioscan"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdR4H39uZ-qTvY32n8-l82zO-H4aY5kak"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
