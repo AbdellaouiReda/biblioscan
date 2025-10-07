@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:video_thumbnail/video_thumbnail.dart' as vt;
 import 'package:path_provider/path_provider.dart';
-import '../models/Book.dart';
+import '../models/Livre.dart';
 import 'ListeLivres.dart';
 
 enum CameraAspect { ratio169, ratio11 }
@@ -18,7 +18,7 @@ class Camera extends StatefulWidget {
   State<Camera> createState() => _CameraState();
 }
 
-class _CameraState extends State<Camera> with TickerProviderStateMixin {
+class _CameraState extends State<Camera> {
   late CameraController _controller;
   late List<CameraDescription> _cameras;
   bool _isInitialized = false;
@@ -31,11 +31,10 @@ class _CameraState extends State<Camera> with TickerProviderStateMixin {
 
   int currentRow = 0;
   int currentColumn = 0;
-  List<Book> scannedBooks = [];
+  List<Livre> scannedBooks = [];
 
   double _zoomLevel = 1.0;
   double _maxZoom = 1.0;
-  double _baseZoom = 1.0;
 
   File? _lastThumbnail;
 
@@ -71,13 +70,24 @@ class _CameraState extends State<Camera> with TickerProviderStateMixin {
   Future<void> _capture() async {
     if (_isVideoMode) {
       if (_isRecording) {
+        // 🛑 Arrêt enregistrement vidéo
         final video = await _controller.stopVideoRecording();
         setState(() => _isRecording = false);
         await _controller.setFlashMode(FlashMode.off);
 
+        // 🖼️ Génération miniature vidéo
         final thumbPath = await _generateVideoThumbnail(video.path);
 
-        scannedBooks.add(Book(title: "Nom du Livre", videoPath: video.path));
+        scannedBooks.add(
+          Livre(
+            biblioId: 1,
+            titre: "Nom du Livre",
+            positionLigne: currentRow,
+            positionColonne: currentColumn,
+            videoPath: video.path,
+            couvertureUrl: thumbPath,
+          ),
+        );
 
         setState(() => _lastThumbnail = File(thumbPath));
         _moveToNextColumnOrRow();
@@ -86,15 +96,26 @@ class _CameraState extends State<Camera> with TickerProviderStateMixin {
           const SnackBar(content: Text("🎥 Vidéo enregistrée !")),
         );
       } else {
+        // ▶️ Démarrage enregistrement
         await _controller.setFlashMode(FlashMode.torch);
         await _controller.startVideoRecording();
         setState(() => _isRecording = true);
       }
     } else {
+      // 📸 Capture photo
       await _controller.setFlashMode(_flashMode);
       final picture = await _controller.takePicture();
 
-      scannedBooks.add(Book(title: "Nom du Livre", imagePath: picture.path));
+      scannedBooks.add(
+        Livre(
+          biblioId: 1,
+          titre: "Nom du Livre",
+          positionLigne: currentRow,
+          positionColonne: currentColumn,
+          imagePath: picture.path,
+          couvertureUrl: picture.path,
+        ),
+      );
 
       setState(() => _lastThumbnail = File(picture.path));
       _moveToNextColumnOrRow();
@@ -111,11 +132,13 @@ class _CameraState extends State<Camera> with TickerProviderStateMixin {
       video: videoPath,
       thumbnailPath: tempDir.path,
       imageFormat: vt.ImageFormat.JPEG,
-      maxWidth: 250,
-      quality: 85,
+      maxWidth: 200,
+      quality: 80,
     );
     return thumb!;
   }
+
+
 
   void _moveToNextColumnOrRow() {
     if (currentColumn < widget.columns - 1) {
@@ -190,29 +213,23 @@ class _CameraState extends State<Camera> with TickerProviderStateMixin {
       ),
     );
 
-    // ✅ Zoom moderne + animation fluide
+    // 🔍 Zoom moderne avec pinch
     return GestureDetector(
-      onScaleStart: (details) => _baseZoom = _zoomLevel,
       onScaleUpdate: (details) async {
-        double newZoom = (_baseZoom * details.scale).clamp(1.0, _maxZoom);
-        if ((newZoom - _zoomLevel).abs() > 0.02) {
-          _zoomLevel = newZoom;
-          await _controller.setZoomLevel(_zoomLevel);
-          setState(() {});
-        }
+        double zoom = (_zoomLevel * details.scale).clamp(1.0, _maxZoom);
+        setState(() => _zoomLevel = zoom);
+        await _controller.setZoomLevel(zoom);
       },
-      child: AnimatedScale(
-        scale: 1.0,
-        duration: const Duration(milliseconds: 200),
-        child: preview,
-      ),
+      child: preview,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_isInitialized) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
@@ -220,7 +237,7 @@ class _CameraState extends State<Camera> with TickerProviderStateMixin {
         children: [
           _buildCameraPreview(),
 
-          // 📍 Informations rangée/colonne
+          // 🔝 Infos étagère / colonne
           Positioned(
             top: 40,
             left: 20,
@@ -261,14 +278,13 @@ class _CameraState extends State<Camera> with TickerProviderStateMixin {
                   onPressed: _toggleAspect,
                   child: Text(
                     _currentAspect == CameraAspect.ratio169 ? "16:9" : "1:1",
-                    style: const TextStyle(fontSize: 16),
                   ),
                 ),
               ],
             ),
           ),
 
-          // ⚙️ Bas de l’écran
+          // 🎬 Boutons bas
           Positioned(
             bottom: 50,
             left: 0,
@@ -305,7 +321,7 @@ class _CameraState extends State<Camera> with TickerProviderStateMixin {
             ),
           ),
 
-          // 🖼 Miniature capture
+          // 🖼️ Miniature
           if (_lastThumbnail != null)
             Positioned(
               bottom: 160,
@@ -317,17 +333,13 @@ class _CameraState extends State<Camera> with TickerProviderStateMixin {
                     builder: (_) => ListeLivres(scannedBooks: scannedBooks),
                   ),
                 ),
-                child: AnimatedOpacity(
-                  opacity: 1,
-                  duration: const Duration(milliseconds: 300),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.file(
-                      _lastThumbnail!,
-                      width: 70,
-                      height: 70,
-                      fit: BoxFit.cover,
-                    ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    _lastThumbnail!,
+                    width: 70,
+                    height: 70,
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),

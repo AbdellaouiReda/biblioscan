@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '../models/Book.dart';
-import '../models/Library.dart';
+import '../models/Livre.dart';
+import '../models/Bibliotheque.dart';
 import '../styles.dart';
 
 class ListeLivres extends StatefulWidget {
-  final Library? library;
-  final List<Book>? scannedBooks;
+  final Bibliotheque? library;
+  final List<Livre>? scannedBooks;
 
   const ListeLivres({super.key, this.library, this.scannedBooks});
 
@@ -14,7 +14,7 @@ class ListeLivres extends StatefulWidget {
 }
 
 class _ListeLivresState extends State<ListeLivres> {
-  late List<Book> books;
+  late List<Livre> books;
   bool _selectionMode = false;
   final Set<int> _selectedIndexes = {};
   bool _isSearching = false;
@@ -23,7 +23,7 @@ class _ListeLivresState extends State<ListeLivres> {
   @override
   void initState() {
     super.initState();
-    books = widget.scannedBooks ?? widget.library?.books ?? [];
+    books = widget.scannedBooks ?? [];
   }
 
   // ➕ Ajouter un livre
@@ -60,15 +60,22 @@ class _ListeLivresState extends State<ListeLivres> {
             ElevatedButton(
               style: AppButtonStyles.elevated,
               onPressed: () {
+                if (title.isEmpty) title = "Nom du Livre";
+                if (author.isEmpty) author = "Auteur inconnu";
+
                 setState(() {
-                  books.add(Book(
-                    title: title.isNotEmpty ? title : "Nom du Livre",
-                    author: author.isNotEmpty ? author : "Auteur inconnu",
+                  books.add(Livre(
+                    biblioId: widget.library?.biblioId ?? 1,
+                    titre: title,
+                    auteur: author,
+                    positionLigne: (books.length ~/ 5),
+                    positionColonne: (books.length % 5),
                   ));
                 });
+
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("📚 Livre ajouté : ${title.isNotEmpty ? title : "Nom du Livre"}")),
+                  SnackBar(content: Text("📚 Livre ajouté : $title")),
                 );
               },
               child: const Text("Ajouter"),
@@ -79,30 +86,40 @@ class _ListeLivresState extends State<ListeLivres> {
     );
   }
 
-  // ✏️ Modifier un livre
+  // ✏️ Modifier la position du livre
   void _editBook(int index) {
-    String title = books[index].title;
-    String author = books[index].author ?? "";
+    int positionLigne = books[index].positionLigne;
+    int positionColonne = books[index].positionColonne;
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: const Text("✏️ Modifier le livre", style: AppTextStyles.title),
+          title: const Text(" Modifier la position", style: AppTextStyles.title),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                controller: TextEditingController(text: title),
-                decoration: const InputDecoration(labelText: "Titre"),
-                onChanged: (val) => title = val,
+                controller: TextEditingController(text: (positionLigne + 1).toString()),
+                decoration: const InputDecoration(
+                  labelText: "Numéro d’étagère",
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (val) =>
+                positionLigne = (int.tryParse(val) ?? 1) - 1,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               TextField(
-                controller: TextEditingController(text: author),
-                decoration: const InputDecoration(labelText: "Auteur"),
-                onChanged: (val) => author = val,
+                controller: TextEditingController(text: (positionColonne + 1).toString()),
+                decoration: const InputDecoration(
+                  labelText: "Numéro de colonne",
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (val) =>
+                positionColonne = (int.tryParse(val) ?? 1) - 1,
               ),
             ],
           ),
@@ -116,14 +133,18 @@ class _ListeLivresState extends State<ListeLivres> {
               style: AppButtonStyles.elevated,
               onPressed: () {
                 setState(() {
-                  books[index] = Book(
-                    title: title.isNotEmpty ? title : "Nom du Livre",
-                    author: author.isNotEmpty ? author : "Auteur inconnu",
+                  books[index] = Livre(
+                    livreId: books[index].livreId,
+                    biblioId: widget.library?.biblioId ?? 1,
+                    titre: books[index].titre,
+                    auteur: books[index].auteur,
+                    positionLigne: positionLigne,
+                    positionColonne: positionColonne,
                   );
                 });
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("✅ Livre modifié")),
+                  const SnackBar(content: Text("✅ Position mise à jour")),
                 );
               },
               child: const Text("Sauvegarder"),
@@ -134,7 +155,7 @@ class _ListeLivresState extends State<ListeLivres> {
     );
   }
 
-  // 🗑️ Supprimer
+  // 🗑️ Supprimer des livres
   void _deleteSelectedBooks() {
     setState(() {
       final toDelete = _selectedIndexes.toList()..sort((a, b) => b.compareTo(a));
@@ -149,13 +170,13 @@ class _ListeLivresState extends State<ListeLivres> {
     );
   }
 
-  // 🔍 Filtrer
-  List<Book> get _filteredBooks {
+  // 🔍 Filtrage par titre/auteur
+  List<Livre> get _filteredBooks {
     if (_searchQuery.isEmpty) return books;
     return books
         .where((b) =>
-    b.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-        (b.author ?? "").toLowerCase().contains(_searchQuery.toLowerCase()))
+    b.titre.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+        (b.auteur ?? "").toLowerCase().contains(_searchQuery.toLowerCase()))
         .toList();
   }
 
@@ -204,7 +225,7 @@ class _ListeLivresState extends State<ListeLivres> {
                 ),
               ),
 
-            // 📚 Affichage GridView moderne
+            // 📚 Grille des livres
             Expanded(
               child: filteredBooks.isEmpty
                   ? const Center(
@@ -255,22 +276,25 @@ class _ListeLivresState extends State<ListeLivres> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.book, color: AppColors.primary, size: 40),
+                          const Icon(Icons.book,
+                              color: AppColors.primary, size: 40),
                           const SizedBox(height: 8),
                           Text(
-                            book.title.isNotEmpty ? book.title : "Nom du Livre",
+                            book.titre,
                             textAlign: TextAlign.center,
-                            style: AppTextStyles.title.copyWith(fontSize: 16),
+                            style: AppTextStyles.title
+                                .copyWith(fontSize: 16),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            book.author ?? "Auteur inconnu",
-                            style: AppTextStyles.subtitle.copyWith(fontSize: 13),
+                            book.auteur ?? "Auteur inconnu",
+                            style: AppTextStyles.subtitle
+                                .copyWith(fontSize: 13),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            "Étagère ${(i ~/ 5) + 1} • Colonne ${(i % 5) + 1}",
+                            "Étagère ${book.positionLigne + 1} • Colonne ${book.positionColonne + 1}",
                             style: AppTextStyles.subtitle.copyWith(
                               fontStyle: FontStyle.italic,
                               fontSize: 12,

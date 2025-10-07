@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/Library.dart';
+import '../models/Bibliotheque.dart';
 import '../styles.dart';
 import 'ListeLivres.dart';
 import 'Camera.dart';
@@ -12,7 +12,7 @@ class AccesBib extends StatefulWidget {
 }
 
 class _AccesBibState extends State<AccesBib> {
-  List<Library> libraries = [];
+  List<Bibliotheque> bibliotheques = [];
   bool _selectionMode = false;
   Set<int> _selectedIndexes = {};
 
@@ -63,12 +63,14 @@ class _AccesBibState extends State<AccesBib> {
               onPressed: () {
                 if (name.isNotEmpty) {
                   setState(() {
-                    libraries.add(Library(
-                      name: name,
-                      rows: rows,
-                      columns: columns,
-                      books: [],
-                    ));
+                    bibliotheques.add(
+                      Bibliotheque(
+                        userId: 1,
+                        nom: name,
+                        nbLignes: rows,
+                        nbColonnes: columns,
+                      ),
+                    );
                   });
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -85,7 +87,7 @@ class _AccesBibState extends State<AccesBib> {
   }
 
   // 📖 Ouvrir une bibliothèque
-  void _openLibrary(Library library) {
+  void _openLibrary(Bibliotheque biblio) {
     if (_selectionMode) return;
 
     showModalBottomSheet(
@@ -108,7 +110,7 @@ class _AccesBibState extends State<AccesBib> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ListeLivres(library: library),
+                        builder: (_) => ListeLivres(library: biblio),
                       ),
                     );
                   },
@@ -122,8 +124,8 @@ class _AccesBibState extends State<AccesBib> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => Camera(
-                          rows: library.rows,
-                          columns: library.columns,
+                          rows: biblio.nbLignes,
+                          columns: biblio.nbColonnes,
                         ),
                       ),
                     );
@@ -140,9 +142,9 @@ class _AccesBibState extends State<AccesBib> {
   // 🗑️ Suppression
   void _deleteSelected() {
     setState(() {
-      libraries = [
-        for (int i = 0; i < libraries.length; i++)
-          if (!_selectedIndexes.contains(i)) libraries[i]
+      bibliotheques = [
+        for (int i = 0; i < bibliotheques.length; i++)
+          if (!_selectedIndexes.contains(i)) bibliotheques[i]
       ];
       _selectedIndexes.clear();
       _selectionMode = false;
@@ -154,8 +156,8 @@ class _AccesBibState extends State<AccesBib> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredLibraries = libraries
-        .where((lib) => lib.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+    final filteredLibraries = bibliotheques
+        .where((b) => b.nom.toLowerCase().contains(_searchQuery.toLowerCase()))
         .toList();
 
     return Scaffold(
@@ -170,12 +172,29 @@ class _AccesBibState extends State<AccesBib> {
         backgroundColor: AppColors.primary,
         actions: [
           if (_selectionMode)
-            IconButton(icon: const Icon(Icons.delete), onPressed: _deleteSelected)
-          else
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _deleteSelected,
+            )
+          else ...[
             IconButton(
               icon: const Icon(Icons.search),
               onPressed: () => setState(() => _isSearching = !_isSearching),
             ),
+            // 🧭 Nouveau bouton vers l’interface de recherche globale
+            IconButton(
+              icon: const Icon(Icons.person_search),
+              tooltip: "Rechercher un livre dans le profil",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const RechercheLivreTemp(),
+                  ),
+                );
+              },
+            ),
+          ],
         ],
       ),
       body: SafeArea(
@@ -198,8 +217,6 @@ class _AccesBibState extends State<AccesBib> {
                   onChanged: (val) => setState(() => _searchQuery = val),
                 ),
               ),
-
-            // ✅ GridView optimisé
             Expanded(
               child: filteredLibraries.isEmpty
                   ? const Center(
@@ -210,7 +227,8 @@ class _AccesBibState extends State<AccesBib> {
               )
                   : GridView.builder(
                 padding: const EdgeInsets.all(12),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
@@ -218,7 +236,7 @@ class _AccesBibState extends State<AccesBib> {
                 ),
                 itemCount: filteredLibraries.length,
                 itemBuilder: (context, i) {
-                  final lib = filteredLibraries[i];
+                  final biblio = filteredLibraries[i];
                   final isSelected = _selectedIndexes.contains(i);
                   return GestureDetector(
                     onLongPress: () {
@@ -238,7 +256,7 @@ class _AccesBibState extends State<AccesBib> {
                           }
                         });
                       } else {
-                        _openLibrary(lib);
+                        _openLibrary(biblio);
                       }
                     },
                     child: Container(
@@ -253,13 +271,13 @@ class _AccesBibState extends State<AccesBib> {
                               color: AppColors.primary, size: 40),
                           const SizedBox(height: 8),
                           Text(
-                            lib.name,
+                            biblio.nom,
                             textAlign: TextAlign.center,
                             style: AppTextStyles.title.copyWith(fontSize: 18),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            "${lib.rows} étagères • ${lib.columns} colonnes",
+                            "${biblio.nbLignes} étagères • ${biblio.nbColonnes} colonnes",
                             style: AppTextStyles.subtitle,
                             textAlign: TextAlign.center,
                           ),
@@ -280,6 +298,27 @@ class _AccesBibState extends State<AccesBib> {
         child: const Icon(Icons.add, color: Colors.white),
       )
           : null,
+    );
+  }
+}
+
+// 🔎 Écran temporaire avant le merge
+class RechercheLivreTemp extends StatelessWidget {
+  const RechercheLivreTemp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Recherche Livre (Temporaire)", style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.primary,
+      ),
+      body: const Center(
+        child: Text(
+          "Interface de recherche à venir...",
+          style: AppTextStyles.subtitle,
+        ),
+      ),
     );
   }
 }

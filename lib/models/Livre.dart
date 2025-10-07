@@ -1,62 +1,69 @@
-class Book {
-  final int? id;
-  final int libraryId;
-  final String title;
-  final String? author;
-  final int? year;
-  final int row;
-  final int column;
-  final String? imageUrl;
-  final bool manualCorrection;
-  final String? videoPath;
-  final String? imagePath;
+class Livre {
+  final int? livreId;           // ID unique du livre
+  final int biblioId;           // ID de la bibliothèque
+  final String titre;           // Titre du livre
+  final String? auteur;         // Auteur du livre
+  final int? anneePublication;  // Année de publication
+  final int positionLigne;      // Ligne (étagère)
+  final int positionColonne;    // Colonne
+  final String? couvertureUrl;  // URL de la couverture
+  final bool correctionManuelle; // Livre modifié manuellement ?
 
-  Book({
-    this.id,
-    required this.libraryId,
-    required this.title,
-    this.author,
-    this.year,
-    required this.row,
-    required this.column,
-    this.imageUrl,
-    this.manualCorrection = false,
-    this.videoPath,
+  // ✅ Champs locaux facultatifs (non persistés mais utiles dans l’app)
+  final String? imagePath;      // Photo locale (scan image)
+  final String? videoPath;      // Vidéo locale (scan vidéo)
+
+  Livre({
+    this.livreId,
+    required this.biblioId,
+    required this.titre,
+    this.auteur,
+    this.anneePublication,
+    required this.positionLigne,
+    required this.positionColonne,
+    this.couvertureUrl,
+    this.correctionManuelle = false,
     this.imagePath,
+    this.videoPath,
   });
 
-  factory Book.fromJson(Map<String, dynamic> json) {
-    return Book(
-      id: json['livre_id'] != null ? int.tryParse(json['livre_id'].toString()) : null,
-      libraryId: int.tryParse(json['biblio_id'].toString()) ?? 0,
-      title: json['titre'] ?? '',
-      author: json['auteur'],
-      year: json['annee_publication'] != null ? int.tryParse(json['annee_publication'].toString()) : null,
-      row: int.tryParse(json['position_ligne'].toString()) ?? 0,
-      column: int.tryParse(json['position_colonne'].toString()) ?? 0,
-      imageUrl: json['couverture_url'],
-      manualCorrection: (json['correction_manuelle'] == 1 || json['correction_manuelle'] == true),
+  // 🔁 Conversion depuis JSON
+  factory Livre.fromJson(Map<String, dynamic> json) {
+    return Livre(
+      livreId: json['livre_id'] != null
+          ? int.tryParse(json['livre_id'].toString())
+          : null,
+      biblioId: int.tryParse(json['biblio_id'].toString()) ?? 0,
+      titre: json['titre'] ?? '',
+      auteur: json['auteur'],
+      anneePublication: json['annee_publication'] != null
+          ? int.tryParse(json['annee_publication'].toString())
+          : null,
+      positionLigne: int.tryParse(json['position_ligne'].toString()) ?? 0,
+      positionColonne: int.tryParse(json['position_colonne'].toString()) ?? 0,
+      couvertureUrl: json['couverture_url'],
+      correctionManuelle: (json['correction_manuelle'] == 1 ||
+          json['correction_manuelle'] == true),
     );
   }
 
+  // 🔁 Conversion vers JSON
   Map<String, dynamic> toJson() {
     return {
-      if (id != null) 'livre_id': id,
-      'biblio_id': libraryId,
-      'titre': title,
-      'auteur': author,
-      'annee_publication': year,
-      'position_ligne': row,
-      'position_colonne': column,
-      'couverture_url': imageUrl,
-      'correction_manuelle': manualCorrection,
-      if (videoPath != null) 'video_path': videoPath,
-      if (imagePath != null) 'image_path': imagePath,
+      if (livreId != null) 'livre_id': livreId,
+      'biblio_id': biblioId,
+      'titre': titre,
+      'auteur': auteur,
+      'annee_publication': anneePublication,
+      'position_ligne': positionLigne,
+      'position_colonne': positionColonne,
+      'couverture_url': couvertureUrl,
+      'correction_manuelle': correctionManuelle,
     };
   }
 
   @override
   String toString() {
-    return 'Book(id: $id, title: $title, author: $author, pos: ($row, $column))';
+    return 'Livre(livreId: $livreId, titre: $titre, auteur: $auteur, position: ($positionLigne, $positionColonne))';
   }
 }

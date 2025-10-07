@@ -1,40 +1,44 @@
-class Library {
-  final int? id;
-  final int userId;
-  final String name;
-  final int rows;
-  final int columns;
+class Bibliotheque {
+  final int? biblioId;          // ID unique (nullable car auto-généré côté backend)
+  final int userId;             // ID utilisateur (lié à la session)
+  final String nom;             // Nom de la bibliothèque
+  final int nbLignes;           // Nombre d'étagères
+  final int nbColonnes;         // Nombre de colonnes
 
-  Library({
-    this.id,
+  Bibliotheque({
+    this.biblioId,
     required this.userId,
-    required this.name,
-    required this.rows,
-    required this.columns,
+    required this.nom,
+    required this.nbLignes,
+    required this.nbColonnes,
   });
 
-  factory Library.fromJson(Map<String, dynamic> json) {
-    return Library(
-      id: json['biblio_id'] != null ? int.tryParse(json['biblio_id'].toString()) : null,
+  // 🔁 Conversion depuis JSON
+  factory Bibliotheque.fromJson(Map<String, dynamic> json) {
+    return Bibliotheque(
+      biblioId: json['biblio_id'] != null
+          ? int.tryParse(json['biblio_id'].toString())
+          : null,
       userId: int.tryParse(json['user_id'].toString()) ?? 0,
-      name: json['nom'] ?? '',
-      rows: int.tryParse(json['nb_lignes'].toString()) ?? 0,
-      columns: int.tryParse(json['nb_colonnes'].toString()) ?? 0,
+      nom: json['nom'] ?? '',
+      nbLignes: int.tryParse(json['nb_lignes'].toString()) ?? 0,
+      nbColonnes: int.tryParse(json['nb_colonnes'].toString()) ?? 0,
     );
   }
 
+  // 🔁 Conversion vers JSON
   Map<String, dynamic> toJson() {
     return {
-      if (id != null) 'biblio_id': id,
+      if (biblioId != null) 'biblio_id': biblioId,
       'user_id': userId,
-      'nom': name,
-      'nb_lignes': rows,
-      'nb_colonnes': columns,
+      'nom': nom,
+      'nb_lignes': nbLignes,
+      'nb_colonnes': nbColonnes,
     };
   }
 
   @override
   String toString() {
-    return 'Library(id: $id, name: $name, rows: $rows, columns: $columns)';
+    return 'Bibliotheque(biblioId: $biblioId, nom: $nom, lignes: $nbLignes, colonnes: $nbColonnes)';
   }
 }
