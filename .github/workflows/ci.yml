@@ -13,12 +13,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FLUTTER_SUPPRESS_ANALYTICS: true
 
     steps:
       - uses: actions/checkout@v3
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.10.0' 
+          flutter-version: '3.22.0'
+      - run: flutter --version
+      - run: flutter doctor
+      - run: flutter doctor --android-licenses --no-color
       - run: flutter pub get
+
       - run: flutter analyze
       - run: flutter test
