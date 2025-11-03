@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/Bibliotheque.dart';
-import '../styles.dart';
-import 'ListeLivres.dart';
-import 'Camera.dart';
+import '../theme/app_theme.dart';
+import 'listeLivres.dart';
+import 'camera.dart';
+import 'book_search_screen.dart'; // ✅ Intégration de la nouvelle interface
 
 class AccesBib extends StatefulWidget {
   const AccesBib({super.key});
@@ -15,11 +16,10 @@ class _AccesBibState extends State<AccesBib> {
   List<Bibliotheque> bibliotheques = [];
   bool _selectionMode = false;
   Set<int> _selectedIndexes = {};
-
   bool _isSearching = false;
   String _searchQuery = "";
 
-  // 🔧 Ajout d'une bibliothèque
+  // 🔧 Ajouter une bibliothèque
   void _addLibrary() {
     String name = "";
     int rows = 1;
@@ -29,6 +29,7 @@ class _AccesBibState extends State<AccesBib> {
       context: context,
       builder: (context) {
         return AlertDialog(
+          backgroundColor: AppColors.background,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: const Text("Nouvelle bibliothèque", style: AppTextStyles.title),
           content: Column(
@@ -92,6 +93,7 @@ class _AccesBibState extends State<AccesBib> {
 
     showModalBottomSheet(
       context: context,
+      backgroundColor: AppColors.background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -104,20 +106,23 @@ class _AccesBibState extends State<AccesBib> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.list, color: AppColors.primary),
-                  title: const Text("Voir / Modifier les livres"),
+                  title: const Text("Voir / Modifier les livres", style: AppTextStyles.subtitle),
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ListeLivres(library: biblio),
+                        builder: (_) => ListeLivres(
+                          library: biblio,
+                          scannedBooks: const [],
+                        ),
                       ),
                     );
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.camera_alt, color: AppColors.primary),
-                  title: const Text("Scanner avec la caméra"),
+                  title: const Text("Scanner avec la caméra", style: AppTextStyles.subtitle),
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
@@ -139,7 +144,7 @@ class _AccesBibState extends State<AccesBib> {
     );
   }
 
-  // 🗑️ Suppression
+  // 🗑️ Suppression multiple
   void _deleteSelected() {
     setState(() {
       bibliotheques = [
@@ -151,6 +156,14 @@ class _AccesBibState extends State<AccesBib> {
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("🗑️ Bibliothèque(s) supprimée(s)")),
+    );
+  }
+
+  // 🚪 Déconnexion
+  void _logout() {
+    Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("👋 Déconnecté avec succès")),
     );
   }
 
@@ -166,33 +179,38 @@ class _AccesBibState extends State<AccesBib> {
         title: Text(
           _selectionMode
               ? "${_selectedIndexes.length} sélectionné(s)"
-              : "Mes Bibliothèques",
-          style: const TextStyle(color: Colors.white),
+              : "BiblioScan",
+          style: const TextStyle(color: AppColors.textDark),
         ),
         backgroundColor: AppColors.primary,
         actions: [
           if (_selectionMode)
             IconButton(
-              icon: const Icon(Icons.delete),
+              icon: const Icon(Icons.delete, color: AppColors.textLight),
               onPressed: _deleteSelected,
             )
           else ...[
             IconButton(
-              icon: const Icon(Icons.search),
+              icon: const Icon(Icons.search, color: AppColors.textLight),
               onPressed: () => setState(() => _isSearching = !_isSearching),
             ),
-            // 🧭 Nouveau bouton vers l’interface de recherche globale
+            // ✅ Nouvelle recherche intégrée
             IconButton(
-              icon: const Icon(Icons.person_search),
-              tooltip: "Rechercher un livre dans le profil",
+              icon: const Icon(Icons.person_search, color: AppColors.textLight),
+              tooltip: "Rechercher un livre en ligne",
               onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const RechercheLivreTemp(),
+                    builder: (_) => const BookSearchScreen(),
                   ),
                 );
               },
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout, color: AppColors.textLight),
+              tooltip: "Déconnexion",
+              onPressed: _logout,
             ),
           ],
         ],
@@ -206,9 +224,9 @@ class _AccesBibState extends State<AccesBib> {
                 child: TextField(
                   decoration: InputDecoration(
                     hintText: "Rechercher une bibliothèque...",
-                    prefixIcon: const Icon(Icons.search),
+                    prefixIcon: const Icon(Icons.search, color: AppColors.primary),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: AppColors.background,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -227,8 +245,7 @@ class _AccesBibState extends State<AccesBib> {
               )
                   : GridView.builder(
                 padding: const EdgeInsets.all(12),
-                gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
@@ -295,30 +312,9 @@ class _AccesBibState extends State<AccesBib> {
           ? FloatingActionButton(
         backgroundColor: AppColors.primary,
         onPressed: _addLibrary,
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.add, color: AppColors.textLight),
       )
           : null,
-    );
-  }
-}
-
-// 🔎 Écran temporaire avant le merge
-class RechercheLivreTemp extends StatelessWidget {
-  const RechercheLivreTemp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Recherche Livre (Temporaire)", style: TextStyle(color: Colors.white)),
-        backgroundColor: AppColors.primary,
-      ),
-      body: const Center(
-        child: Text(
-          "Interface de recherche à venir...",
-          style: AppTextStyles.subtitle,
-        ),
-      ),
     );
   }
 }

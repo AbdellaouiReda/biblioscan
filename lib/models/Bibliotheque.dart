@@ -1,9 +1,12 @@
+import 'Livre.dart';
+
 class Bibliotheque {
-  final int? biblioId;          // ID unique (nullable car auto-généré côté backend)
-  final int userId;             // ID utilisateur (lié à la session)
-  final String nom;             // Nom de la bibliothèque
-  final int nbLignes;           // Nombre d'étagères
-  final int nbColonnes;         // Nombre de colonnes
+  final int? biblioId;
+  final int userId;
+  final String nom;
+  final int nbLignes;
+  final int nbColonnes;
+  List<Livre> books; // ✅ Liste de livres liée à la bibliothèque
 
   Bibliotheque({
     this.biblioId,
@@ -11,9 +14,9 @@ class Bibliotheque {
     required this.nom,
     required this.nbLignes,
     required this.nbColonnes,
+    this.books = const [],
   });
 
-  // 🔁 Conversion depuis JSON
   factory Bibliotheque.fromJson(Map<String, dynamic> json) {
     return Bibliotheque(
       biblioId: json['biblio_id'] != null
@@ -23,10 +26,10 @@ class Bibliotheque {
       nom: json['nom'] ?? '',
       nbLignes: int.tryParse(json['nb_lignes'].toString()) ?? 0,
       nbColonnes: int.tryParse(json['nb_colonnes'].toString()) ?? 0,
+      books: [],
     );
   }
 
-  // 🔁 Conversion vers JSON
   Map<String, dynamic> toJson() {
     return {
       if (biblioId != null) 'biblio_id': biblioId,
@@ -39,6 +42,6 @@ class Bibliotheque {
 
   @override
   String toString() {
-    return 'Bibliotheque(biblioId: $biblioId, nom: $nom, lignes: $nbLignes, colonnes: $nbColonnes)';
+    return 'Bibliotheque(biblioId: $biblioId, nom: $nom, lignes: $nbLignes, colonnes: $nbColonnes, livres: ${books.length})';
   }
 }

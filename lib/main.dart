@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'styles.dart';
-import 'screens/AccesBib.dart';
+import 'theme/app_theme.dart';
+
+import 'screens/home_page.dart';
+import 'screens/login_page.dart';
+import 'screens/register_page.dart';
+import 'screens/accesBib.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +38,16 @@ class BiblioScanApp extends StatelessWidget {
           foregroundColor: AppColors.textLight,
         ),
       ),
-      home: const AccesBib(),
+
+      home: const HomePage(),
+
+      routes: {
+        '/login': (context) => const LoginPage(),
+        '/register': (context) => const RegisterPage(),
+        '/home': (context) => const HomePage(),
+        '/accesbib': (context) => const AccesBib(),
+
+      },
     );
   }
 }

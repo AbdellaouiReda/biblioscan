@@ -1,17 +1,14 @@
 class Livre {
-  final int? livreId;           // ID unique du livre
-  final int biblioId;           // ID de la bibliothèque
-  final String titre;           // Titre du livre
-  final String? auteur;         // Auteur du livre
-  final int? anneePublication;  // Année de publication
-  final int positionLigne;      // Ligne (étagère)
-  final int positionColonne;    // Colonne
-  final String? couvertureUrl;  // URL de la couverture
-  final bool correctionManuelle; // Livre modifié manuellement ?
-
-  // ✅ Champs locaux facultatifs (non persistés mais utiles dans l’app)
-  final String? imagePath;      // Photo locale (scan image)
-  final String? videoPath;      // Vidéo locale (scan vidéo)
+  final int? livreId; // ID unique du livre
+  final int biblioId; // ID de la bibliothèque
+  String titre;
+  String? auteur;
+  int? anneePublication;
+  int positionLigne;
+  int positionColonne;
+  bool correctionManuelle;
+  String? imagePath; // ✅ chemin de l’image capturée
+  String? videoPath; // ✅ chemin de la vidéo enregistrée
 
   Livre({
     this.livreId,
@@ -21,13 +18,12 @@ class Livre {
     this.anneePublication,
     required this.positionLigne,
     required this.positionColonne,
-    this.couvertureUrl,
     this.correctionManuelle = false,
     this.imagePath,
     this.videoPath,
   });
 
-  // 🔁 Conversion depuis JSON
+  // 🔁 Conversion depuis JSON / SQLite
   factory Livre.fromJson(Map<String, dynamic> json) {
     return Livre(
       livreId: json['livre_id'] != null
@@ -41,13 +37,14 @@ class Livre {
           : null,
       positionLigne: int.tryParse(json['position_ligne'].toString()) ?? 0,
       positionColonne: int.tryParse(json['position_colonne'].toString()) ?? 0,
-      couvertureUrl: json['couverture_url'],
-      correctionManuelle: (json['correction_manuelle'] == 1 ||
-          json['correction_manuelle'] == true),
+      correctionManuelle:
+      (json['correction_manuelle'] == 1 || json['correction_manuelle'] == true),
+      imagePath: json['image_path'],
+      videoPath: json['video_path'],
     );
   }
 
-  // 🔁 Conversion vers JSON
+  // 🔄 Vers JSON / SQLite
   Map<String, dynamic> toJson() {
     return {
       if (livreId != null) 'livre_id': livreId,
@@ -57,13 +54,14 @@ class Livre {
       'annee_publication': anneePublication,
       'position_ligne': positionLigne,
       'position_colonne': positionColonne,
-      'couverture_url': couvertureUrl,
-      'correction_manuelle': correctionManuelle,
+      'correction_manuelle': correctionManuelle ? 1 : 0,
+      'image_path': imagePath,
+      'video_path': videoPath,
     };
   }
 
   @override
   String toString() {
-    return 'Livre(livreId: $livreId, titre: $titre, auteur: $auteur, position: ($positionLigne, $positionColonne))';
+    return 'Livre(id: $livreId, titre: $titre, auteur: $auteur, étagère: $positionLigne, colonne: $positionColonne, image: $imagePath, video: $videoPath)';
   }
 }
