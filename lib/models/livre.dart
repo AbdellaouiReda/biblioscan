@@ -3,7 +3,7 @@ class Livre {
   int biblioId;
   String titre;
   String? auteur;
-  DateTime? datePub;
+  String? datePub;
   int positionLigne;
   int positionColonne;
   String? couvertureUrl;
@@ -29,8 +29,7 @@ class Livre {
       biblioId: json['biblio_id'],
       titre: json['titre'],
       auteur: json['auteur'],
-      datePub:
-      json['date_pub'] != null ? DateTime.parse(json['date_pub']) : null,
+      datePub:json['date_pub'],
       positionLigne: json['position_ligne'],
       positionColonne: json['position_colonne'],
       couvertureUrl: json['couverture_url'],
@@ -44,7 +43,7 @@ class Livre {
     'biblio_id': biblioId,
     'titre': titre,
     'auteur': auteur,
-    'date_pub': datePub?.toIso8601String(),
+    'date_pub': datePub,
     'position_ligne': positionLigne,
     'position_colonne': positionColonne,
     'couverture_url': couvertureUrl,

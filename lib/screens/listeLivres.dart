@@ -51,22 +51,29 @@ class _ListeLivresState extends State<ListeLivres> {
       return;
     }
 
-    // 1) Si des livres viennent du scan, on les ajoute côté API
+    // 1) Si des livres viennent du scan, on les envoie d’abord côté API
     if (widget.scannedBooks != null && widget.scannedBooks!.isNotEmpty) {
       for (var livre in widget.scannedBooks!) {
-        // s'assurer que le livre a bien le biblioId courant
-        livre.biblioId = biblioId;
+        livre.biblioId = biblioId;              // s'assurer de la bonne biblio
         await _livreService.ajouterLivre(_token!, livre);
       }
     }
 
-    // 2) Charger depuis l’API tous les livres de la bibliothèque
-    final apiBooks = await _bibService.voirBibliotheque(_token!, biblioId);
-
-    if (!mounted) return;
-    setState(() {
-      books = apiBooks;
-    });
+    // 2) Puis on recharge la liste complète depuis l’API
+    try {
+      final apiBooks = await _bibService.voirBibliotheque(_token!, biblioId);
+      if (!mounted) return;
+      setState(() {
+        books = apiBooks;
+      });
+    } catch (e) {
+      // En cas d'erreur, on évite le crash et on vide la liste
+      if (!mounted) return;
+      setState(() => books = []);
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Impossible de charger les livres : $e")),
+          );
+    }
   }
 
   /// 🧾 Détails d’un livre
@@ -80,7 +87,7 @@ class _ListeLivresState extends State<ListeLivres> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _detailLine("Auteur", book.auteur ?? "Inconnu"),
-            _detailLine("Année", book.datePub?.year.toString() ?? "N/A"),
+            _detailLine("Année", book.datePub ?? "N/A"),
             _detailLine("Étagère", (book.positionLigne + 1).toString()),
             _detailLine("Colonne", (book.positionColonne + 1).toString()),
           ],
@@ -128,7 +135,7 @@ class _ListeLivresState extends State<ListeLivres> {
   void _editBook(Livre book) {
     final titleCtrl = TextEditingController(text: book.titre);
     final authorCtrl = TextEditingController(text: book.auteur ?? "");
-    final yearCtrl = TextEditingController(text: book.datePub?.year.toString() ?? "");
+    final yearCtrl = TextEditingController(text: book.datePub ?? "");
     final shelfCtrl = TextEditingController(text: (book.positionLigne + 1).toString());
     final colCtrl = TextEditingController(text: (book.positionColonne + 1).toString());
 
@@ -191,7 +198,7 @@ class _ListeLivresState extends State<ListeLivres> {
                 biblioId: book.biblioId,
                 titre: titleCtrl.text.trim(),
                 auteur: authorCtrl.text.trim().isEmpty ? null : authorCtrl.text.trim(),
-                datePub: newDate,
+                datePub: yearCtrl.text.trim().isNotEmpty? yearCtrl.text.trim():book.datePub,
                 positionLigne: int.tryParse(shelfCtrl.text.trim()) != null
                     ? int.parse(shelfCtrl.text.trim()) - 1
                     : book.positionLigne,
