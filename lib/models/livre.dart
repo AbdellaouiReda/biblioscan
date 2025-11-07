@@ -1,23 +1,23 @@
 class Livre {
   int? livreId;
-  int biblioId;
+  int? biblioId; // 🔥 Rendu nullable
   String titre;
   String? auteur;
   String? datePub;
-  int positionLigne;
-  int positionColonne;
+  int? positionLigne; // 🔥 Rendu nullable
+  int? positionColonne; // 🔥 Rendu nullable
   String? couvertureUrl;
   bool correctionManuelle;
   String? token;
 
   Livre({
     this.livreId,
-    required this.biblioId,
+    this.biblioId, // 🔥 Plus required
     required this.titre,
     this.auteur,
     this.datePub,
-    required this.positionLigne,
-    required this.positionColonne,
+    this.positionLigne, // 🔥 Plus required
+    this.positionColonne, // 🔥 Plus required
     this.couvertureUrl,
     this.correctionManuelle = false,
     this.token,
@@ -26,12 +26,12 @@ class Livre {
   factory Livre.fromJson(Map<String, dynamic> json) {
     return Livre(
       livreId: json['livre_id'],
-      biblioId: json['biblio_id'],
-      titre: json['titre'],
+      biblioId: json['biblio_id'], // 🔥 Peut être null maintenant
+      titre: json['titre'] ?? 'Sans titre', // 🔥 Valeur par défaut
       auteur: json['auteur'],
-      datePub:json['date_pub'],
-      positionLigne: json['position_ligne'],
-      positionColonne: json['position_colonne'],
+      datePub: json['date_pub'],
+      positionLigne: json['position_ligne'], // 🔥 Peut être null
+      positionColonne: json['position_colonne'], // 🔥 Peut être null
       couvertureUrl: json['couverture_url'],
       correctionManuelle: json['correction_manuelle'] == 1,
       token: json['token'],

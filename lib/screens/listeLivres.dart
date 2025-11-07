@@ -88,8 +88,8 @@ class _ListeLivresState extends State<ListeLivres> {
           children: [
             _detailLine("Auteur", book.auteur ?? "Inconnu"),
             _detailLine("Année", book.datePub ?? "N/A"),
-            _detailLine("Étagère", (book.positionLigne + 1).toString()),
-            _detailLine("Colonne", (book.positionColonne + 1).toString()),
+            _detailLine("Étagère", (book.positionLigne).toString()),
+            _detailLine("Colonne", (book.positionColonne).toString()),
           ],
         ),
         actions: [
@@ -136,8 +136,8 @@ class _ListeLivresState extends State<ListeLivres> {
     final titleCtrl = TextEditingController(text: book.titre);
     final authorCtrl = TextEditingController(text: book.auteur ?? "");
     final yearCtrl = TextEditingController(text: book.datePub ?? "");
-    final shelfCtrl = TextEditingController(text: (book.positionLigne + 1).toString());
-    final colCtrl = TextEditingController(text: (book.positionColonne + 1).toString());
+    final shelfCtrl = TextEditingController(text: (book.positionLigne ).toString());
+    final colCtrl = TextEditingController(text: (book.positionColonne ).toString());
 
     showDialog(
       context: context,
@@ -200,10 +200,10 @@ class _ListeLivresState extends State<ListeLivres> {
                 auteur: authorCtrl.text.trim().isEmpty ? null : authorCtrl.text.trim(),
                 datePub: yearCtrl.text.trim().isNotEmpty? yearCtrl.text.trim():book.datePub,
                 positionLigne: int.tryParse(shelfCtrl.text.trim()) != null
-                    ? int.parse(shelfCtrl.text.trim()) - 1
+                    ? int.parse(shelfCtrl.text.trim())
                     : book.positionLigne,
                 positionColonne: int.tryParse(colCtrl.text.trim()) != null
-                    ? int.parse(colCtrl.text.trim()) - 1
+                    ? int.parse(colCtrl.text.trim())
                     : book.positionColonne,
               );
 
@@ -397,7 +397,7 @@ class _ListeLivresState extends State<ListeLivres> {
                         ),
                         const Spacer(),
                         Text(
-                          "📍 Ét. ${book.positionLigne + 1} • Col. ${book.positionColonne + 1}",
+                          "📍 Ét. ${book.positionLigne } • Col. ${book.positionColonne}",
                           style: const TextStyle(
                               fontSize: 11, fontStyle: FontStyle.italic),
                         ),

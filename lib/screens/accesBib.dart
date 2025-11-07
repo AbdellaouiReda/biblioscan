@@ -9,8 +9,10 @@ import '../services/bib_services.dart';
 import '../services/auth_service.dart';
 import '../services/livre_services.dart';
 
+
 import 'listeLivres.dart';
 import 'camera.dart';
+import 'book_search_screen.dart';
 
 class AccesBib extends StatefulWidget {
   const AccesBib({super.key});
@@ -290,6 +292,7 @@ class _AccesBibState extends State<AccesBib> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text(
           _selectionMode
               ? "${_selectedIndexes.length} sélectionné(s)"
@@ -313,12 +316,12 @@ class _AccesBibState extends State<AccesBib> {
               tooltip: "Rechercher un livre dans le profil",
               onPressed: () {
                 Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const RechercheLivreTemp(),
-                  ),
-                );
-              },
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const BookSearchScreen(),
+                    ),
+                    );
+                },
             ),
             IconButton(
               icon: const Icon(Icons.logout, color: AppColors.textLight),
@@ -436,27 +439,3 @@ class _AccesBibState extends State<AccesBib> {
   }
 }
 
-// 🔎 Écran temporaire avant le merge
-class RechercheLivreTemp extends StatelessWidget {
-  const RechercheLivreTemp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: const Text(
-            "Recherche Livre (Temporaire)",
-            style: TextStyle(color: AppColors.textLight),
-          ),
-          backgroundColor: AppColors.primary,
-        ),
-        body: const Center(
-            child: Text(
-              "Interface de recherche à venir...",
-              style: AppTextStyles.subtitle,
-            ),
-            ),
-        );
-    }
-}
