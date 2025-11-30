@@ -1,17 +1,17 @@
-import os
-import cv2
-import numpy as np
-import torch
-import easyocr
-from fastapi import FastAPI, File, UploadFile, Request
+"""BiblioScan FastAPI server - Main application entry point"""
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
-from ultralytics import YOLO
+from fastapi.responses import HTMLResponse
+from fastapi import File, UploadFile
+import uvicorn
+
+# Import controllers
+from controllers import upload_controller, detection_controller
 
 # =========================================================
-#  CONFIG
+#  APP CONFIGURATION
 # =========================================================
-app = FastAPI(title=" BiblioScan Détection Serveur", version="1.0")
+app = FastAPI(title="BiblioScan Détection Serveur", version="1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,211 +21,36 @@ app.add_middleware(
 )
 
 # =========================================================
-#  YOLO
-# =========================================================
-MODEL_PATH = "./models/bookshelf_best.pt"
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-print(f" Device : {DEVICE}")
-
-model = YOLO(MODEL_PATH)
-model.to(DEVICE)
-print(f" YOLO chargé depuis {MODEL_PATH}")
-
-# =========================================================
-#  EASYOCR
-# =========================================================
-print(" Initialisation EasyOCR...")
-reader = easyocr.Reader(['fr', 'en'], gpu=(DEVICE == "cuda"), verbose=False)
-print(f" EasyOCR chargé (GPU: {DEVICE == 'cuda'})")
-
-# =========================================================
-#  CHEMINS
-# =========================================================
-UPLOAD_PATH = "uploaded.jpg"
-os.makedirs("debug_crops", exist_ok=True)
-DEBUG_IMG_PATH = "debug_crops/debug_image.jpg"
-ORIGINAL_PATH = "debug_crops/original.jpg"
-
-# =========================================================
-#  UPLOAD
+#  ROUTES
 # =========================================================
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...)):
-    content = await file.read()
-    with open(UPLOAD_PATH, "wb") as f:
-        f.write(content)
-    img = cv2.imread(UPLOAD_PATH)
-    cv2.imwrite(ORIGINAL_PATH, img)
-    return {"message": " Image uploadée avec succès", "path": UPLOAD_PATH}
+    """Upload image endpoint"""
+    return await upload_controller.upload_image(file)
 
-# =========================================================
-#  DÉTECTION DES LIVRES
-# =========================================================
 @app.post("/detect")
 async def detect(conf: float = 0.6, iou: float = 0.5):
-    img = cv2.imread(UPLOAD_PATH)
-    results = model.predict(img, conf=conf, iou=iou, imgsz=640, device=DEVICE, verbose=False)[0]
+    """Detect books endpoint"""
+    return await detection_controller.detect(conf=conf, iou=iou)
 
-    annotated = img.copy()
-    for box, score, cls in zip(results.boxes.xyxy.cpu().numpy(),
-                               results.boxes.conf.cpu().numpy(),
-                               results.boxes.cls.cpu().numpy()):
-        x1, y1, x2, y2 = map(int, box)
-        label = f"{results.names[int(cls)]} ({score:.2f})"
-        cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), 3)
-        cv2.putText(annotated, label, (x1, max(25, y1-10)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
+@app.post("/detect_and_ocr")
+async def detect_and_ocr(conf: float = 0.6, iou: float = 0.5):
+    """Detect books and run OCR endpoint"""
+    return await detection_controller.detect_and_ocr(conf=conf, iou=iou)
 
-    cv2.imwrite(DEBUG_IMG_PATH, annotated)
-    return {
-        "num_books": len(results.boxes),
-        "original_image": "/debug_crops/original.jpg",
-        "annotated_image": "/debug_crops/debug_image.jpg"
-    }
-
-# =========================================================
-#  OCR HELPER FUNCTIONS
-# =========================================================
-def preprocess_image(img):
-    """Preprocess image for OCR: grayscale + contrast enhancement"""
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    enhanced = cv2.equalizeHist(gray)
-    return enhanced
-
-def clean_text(results):
-    """Clean and format OCR text"""
-    if not results:
-        return ""
-    texts = [item[1] for item in results]
-    text = ' '.join(texts)
-    text = ' '.join(text.split())
-    text = text.title()
-    return text
-
-def calculate_confidence(results):
-    """Calculate average confidence from OCR results"""
-    if not results:
-        return 0.0
-    confidences = [item[2] for item in results]
-    return sum(confidences) / len(confidences)
-
-def get_confidence_label(confidence):
-    """Get quality label based on confidence score"""
-    if confidence >= 0.9:
-        return "Excellent"
-    elif confidence >= 0.7:
-        return "Good"
-    elif confidence >= 0.5:
-        return "Fair"
-    else:
-        return "Poor"
-
+@app.post("/detect_and_ocr_and_agent")
+async def detect_and_ocr_and_agent(conf: float = 0.6, iou: float = 0.5):
+    """Detect books, run OCR, and resolve titles using agents"""
+    return await detection_controller.detect_and_ocr_and_agent(conf=conf, iou=iou)
 
 @app.get("/debug_crops/{filename}")
 async def serve_crop(filename: str):
-    return FileResponse(os.path.join("debug_crops", filename))
+    """Serve crop images for debugging"""
+    return await detection_controller.serve_crop(filename)
 
-# =========================================================
-#  DETECT BOOKS + OCR PER BOOK
-# =========================================================
-@app.post("/detect_and_ocr")
-async def detect_and_ocr(conf: float = 0.6, iou: float = 0.5):
-    """Detect books with YOLO and run OCR on each detected book individually"""
-    img = cv2.imread(UPLOAD_PATH)
-    
-    # Run YOLO detection
-    results = model.predict(img, conf=conf, iou=iou, imgsz=640, device=DEVICE, verbose=False)[0]
-    
-    if len(results.boxes) == 0:
-        return {
-            "num_books": 0,
-            "books": [],
-            "annotated_image": None
-        }
-    
-    books_data = []
-    annotated = img.copy()
-    
-    # Process each detected book
-    for idx, (box, score, cls) in enumerate(zip(
-        results.boxes.xyxy.cpu().numpy(),
-        results.boxes.conf.cpu().numpy(),
-        results.boxes.cls.cpu().numpy()
-    )):
-        x1, y1, x2, y2 = map(int, box)
-        
-        # Crop the book region
-        book_crop = img[y1:y2, x1:x2]
-        
-        # Save crop for debugging
-        crop_path = f"debug_crops/book_{idx}.jpg"
-        cv2.imwrite(crop_path, book_crop)
-        
-        # Preprocess and run OCR on this specific book
-        enhanced_crop = preprocess_image(book_crop)
-        ocr_results = reader.readtext(enhanced_crop)
-        
-        # Process OCR results for this book
-        cleaned_text = clean_text(ocr_results)
-        avg_confidence = calculate_confidence(ocr_results)
-        quality = get_confidence_label(avg_confidence)
-        
-        # Format detections for this book
-        detections = []
-        for bbox, text, conf in ocr_results:
-            detections.append({
-                "text": text,
-                "confidence": round(conf * 100, 2),
-                "bbox": [[float(x), float(y)] for x, y in bbox]
-            })
-        
-        # Store book data
-        book_info = {
-            "book_id": idx,
-            "bbox": [int(x1), int(y1), int(x2), int(y2)],
-            "detection_confidence": float(score),
-            "class": results.names[int(cls)],
-            "text": cleaned_text,
-            "ocr_confidence": round(avg_confidence * 100, 2) if ocr_results else 0.0,
-            "ocr_quality": quality,
-            "num_text_detections": len(ocr_results),
-            "text_detections": detections,
-            "crop_image": f"/debug_crops/book_{idx}.jpg"
-        }
-        books_data.append(book_info)
-        
-        # Draw on annotated image
-        cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), 3)
-        label = f"Book {idx}: {cleaned_text[:20]}..." if cleaned_text else f"Book {idx}"
-        cv2.putText(annotated, label, (x1, max(25, y1-10)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
-        # Also draw OCR regions on the crop
-        book_crop_annotated = book_crop.copy()
-        for bbox, text, conf in ocr_results:
-            points = np.array(bbox).astype(np.int32)
-            cv2.polylines(book_crop_annotated, [points], True, (0, 255, 0), 2)
-        
-        crop_annotated_path = f"debug_crops/book_{idx}_ocr.jpg"
-        cv2.imwrite(crop_annotated_path, book_crop_annotated)
-        book_info["crop_image_annotated"] = f"/debug_crops/book_{idx}_ocr.jpg"
-    
-    # Save overall annotated image
-    annotated_path = "debug_crops/all_books_detected.jpg"
-    cv2.imwrite(annotated_path, annotated)
-    
-    return {
-        "num_books": len(results.boxes),
-        "books": books_data,
-        "annotated_image": "/debug_crops/all_books_detected.jpg",
-        "original_image": "/debug_crops/original.jpg"
-    }
-
-# =========================================================
-#  INTERFACE WEB SIMPLE
-# =========================================================
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    """Web interface"""
     html = """
     <html>
     <head>
@@ -262,6 +87,7 @@ async def index(request: Request):
         <div class="button-group">
             <button id="detectBtn" onclick="detectBooks()" disabled>🔍 Détecter les livres</button>
             <button id="detectOcrBtn" onclick="detectAndOcrBooks()" disabled>🔍📝 Détecter + OCR par livre</button>
+            <button id="detectOcrAgentBtn" onclick="detectAndOcrAndAgentBooks()" disabled>🤖🔍📝 Détecter + OCR + Agent</button>
         </div>
         
         <p id="status"></p>
@@ -272,6 +98,7 @@ async def index(request: Request):
         const status = document.getElementById("status");
         const detectBtn = document.getElementById("detectBtn");
         const detectOcrBtn = document.getElementById("detectOcrBtn");
+        const detectOcrAgentBtn = document.getElementById("detectOcrAgentBtn");
         let imageUploaded = false;
 
         document.getElementById("uploadForm").onsubmit = async (e) => {
@@ -285,6 +112,7 @@ async def index(request: Request):
             imageUploaded = true;
             detectBtn.disabled = false;
             detectOcrBtn.disabled = false;
+            detectOcrAgentBtn.disabled = false;
             document.getElementById("results").innerHTML = "";
             document.getElementById("ocrResults").innerHTML = "";
         };
@@ -382,6 +210,137 @@ async def index(request: Request):
             
             document.getElementById("ocrResults").innerHTML = booksHtml;
         }
+
+        async function detectAndOcrAndAgentBooks() {
+            if (!imageUploaded) return;
+            status.innerText = "🤖🔍📝 Détection, OCR et résolution par agent en cours...";
+            detectOcrAgentBtn.disabled = true;
+            const res = await fetch("/detect_and_ocr_and_agent", {method:"POST"});
+            const data = await res.json();
+            status.innerText = "✅ Détection, OCR et résolution terminés";
+            detectOcrAgentBtn.disabled = false;
+            
+            if (data.num_books === 0) {
+                document.getElementById("results").innerHTML = "<h3>❌ Aucun livre détecté</h3>";
+                return;
+            }
+            
+            let booksHtml = "";
+            data.books.forEach(book => {
+                let confidenceClass = book.ocr_quality.toLowerCase();
+                let agentConfidenceClass = book.agent_confidence >= 70 ? "excellent" : 
+                                         book.agent_confidence >= 50 ? "good" : 
+                                         book.agent_confidence >= 30 ? "fair" : "poor";
+                booksHtml += `
+                    <div class="ocr-results" style="margin:20px auto;">
+                        <h3>📕 Livre ${book.book_id + 1}</h3>
+                        <div style="display:flex; gap:15px; justify-content:center; flex-wrap:wrap; margin:15px 0;">
+                            <div>
+                                <h4>Crop original</h4>
+                                <img src="${book.crop_image}?t=${Date.now()}" style="max-width:250px;">
+                            </div>
+                            <div>
+                                <h4>Détections OCR</h4>
+                                <img src="${book.crop_image_annotated}?t=${Date.now()}" style="max-width:250px;">
+                            </div>
+                        </div>
+                        
+                        <div class="ocr-text">
+                            <strong>Texte OCR extrait :</strong><br>
+                            "${book.text || 'Aucun texte détecté'}"
+                        </div>
+                        
+                        ${book.resolved_title ? `
+                        <div class="ocr-text" style="background:#fff3cd; border:2px solid #ffc107;">
+                            <strong>🤖 Titre résolu par l'agent :</strong><br>
+                            "<strong style="font-size:20px; color:#006666;">${book.resolved_title}</strong>"
+                        </div>
+                        ` : ''}
+                        
+                        ${book.google_books_found && book.google_books_info ? `
+                        <div class="ocr-text" style="background:#d4edda; border:2px solid #28a745;">
+                            <strong>📚 Vérification Google Books :</strong><br>
+                            <div style="margin-top:10px;">
+                                ${book.google_books_info.authors && book.google_books_info.authors.length > 0 ? `
+                                    <div><strong>Auteur(s):</strong> ${book.google_books_info.authors.join(', ')}</div>
+                                ` : ''}
+                                ${book.google_books_info.published_date ? `
+                                    <div><strong>Publié:</strong> ${book.google_books_info.published_date}</div>
+                                ` : ''}
+                                ${book.google_books_info.categories && book.google_books_info.categories.length > 0 ? `
+                                    <div><strong>Catégories:</strong> ${book.google_books_info.categories.slice(0, 3).join(', ')}</div>
+                                ` : ''}
+                                ${book.google_books_info.average_rating > 0 ? `
+                                    <div><strong>Note:</strong> ${book.google_books_info.average_rating}/5 (${book.google_books_info.ratings_count} avis)</div>
+                                ` : ''}
+                                ${book.google_books_info.info_link ? `
+                                    <div style="margin-top:8px;">
+                                        <a href="${book.google_books_info.info_link}" target="_blank" style="color:#006666; text-decoration:underline;">
+                                            🔗 Voir sur Google Books
+                                        </a>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        ` : book.google_books_verification ? `
+                        <div class="ocr-text" style="background:#fff3cd; border:2px solid #ffc107;">
+                            <strong>📚 Vérification Google Books :</strong><br>
+                            <div style="margin-top:10px; white-space:pre-line;">${book.google_books_verification}</div>
+                        </div>
+                        ` : ''}
+                        
+                        <div>
+                            <span class="confidence ${confidenceClass}">
+                                OCR Confiance : ${book.ocr_confidence}% (${book.ocr_quality})
+                            </span>
+                            <span style="margin-left:10px; color:#666;">
+                                Détection YOLO : ${(book.detection_confidence * 100).toFixed(1)}%
+                            </span>
+                            ${book.resolved_title ? `
+                            <span class="confidence ${agentConfidenceClass}" style="margin-left:10px;">
+                                Agent Confiance : ${book.agent_confidence}%
+                            </span>
+                            ` : ''}
+                            ${book.google_books_found ? `
+                            <span class="confidence excellent" style="margin-left:10px;">
+                                ✅ Google Books
+                            </span>
+                            ` : ''}
+                        </div>
+                        
+                        ${book.agent_reasoning ? `
+                            <div style="margin-top:10px; padding:10px; background:#f8f9fa; border-radius:5px; font-size:14px; color:#666;">
+                                <strong>💭 Raisonnement de l'agent :</strong><br>
+                                ${book.agent_reasoning}
+                            </div>
+                        ` : ''}
+                        
+                        ${book.text_detections.length > 0 ? `
+                            <div class="detections">
+                                <h4>Détails (${book.num_text_detections} détections) :</h4>
+                                ${book.text_detections.map((d, i) => `
+                                    <div class="detection-item">
+                                        <strong>${i+1}.</strong> "${d.text}" 
+                                        <span style="float:right; color:#008080;">${d.confidence}%</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            document.getElementById("results").innerHTML = `
+                <div style="margin:20px 0;">
+                    <h3>📚 ${data.num_books} livre(s) détecté(s), analysé(s) et résolu(s)</h3>
+                    <div style="margin:15px 0;">
+                        <img src="${data.annotated_image}?t=${Date.now()}" width="600" style="border-radius:10px;">
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById("ocrResults").innerHTML = booksHtml;
+        }
         </script>
     </body>
     </html>
@@ -392,6 +351,5 @@ async def index(request: Request):
 #  RUN
 # =========================================================
 if __name__ == "__main__":
-    import uvicorn
     print(" Serveur sur http://localhost:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)
