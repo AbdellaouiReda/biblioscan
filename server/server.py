@@ -181,6 +181,33 @@ class BookWithAgent(BookOCR):
             "example": "L'OCR contient 'Deep Learning' et 'Python', croisé avec Google Books.",
         },
     )
+    google_books_found: bool = Field(
+        ...,
+        description="Indique si un livre correspondant a été trouvé dans Google Books.",
+        json_schema_extra={"example": True},
+    )
+    google_books_info: dict | None = Field(
+        None,
+        description="Informations détaillées renvoyées par l'API Google Books pour le meilleur match.",
+        json_schema_extra={
+            "example": {
+                "title": "Deep Learning",
+                "authors": ["Ian Goodfellow", "Yoshua Bengio", "Aaron Courville"],
+                "published_date": "2016-11-18",
+                "categories": ["Computers"],
+                "average_rating": 4.5,
+                "ratings_count": 1234,
+                "info_link": "https://books.google.com/...",
+            }
+        },
+    )
+    google_books_verification: str = Field(
+        ...,
+        description="Résumé textuel de la vérification Google Books (trouvé / pas trouvé, détails).",
+        json_schema_extra={
+            "example": "✅ Book found in Google Books! Title: Deep Learning ...",
+        },
+    )
 
 
 class DetectResponse(BaseModel):

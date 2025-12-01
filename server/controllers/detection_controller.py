@@ -247,10 +247,13 @@ async def detect_and_ocr_and_agent(conf: float = 0.6, iou: float = 0.5):
             "num_text_detections": len(detections),
             "text_detections": detections,
             "crop_image": f"/debug_crops/book_{idx}.jpg",
-            # Agent results
+            # Agent results (LangGraph LLM agent + Google Books verification)
             "resolved_title": agent_result.get("resolved_title", ""),
             "agent_confidence": round(agent_result.get("confidence", 0.0) * 100, 2),
-            "agent_reasoning": agent_result.get("reasoning", "")
+            "agent_reasoning": agent_result.get("reasoning", ""),
+            "google_books_found": agent_result.get("google_books_found", False),
+            "google_books_info": agent_result.get("google_books_info"),
+            "google_books_verification": agent_result.get("google_books_verification", ""),
         }
         books_data.append(book_info)
         
