@@ -212,6 +212,7 @@ class _AccesBibState extends State<AccesBib> {
                           rows: biblio.nbLignes,
                           columns: biblio.nbColonnes,
                           libraryName: biblio.nom,
+                          biblioId: biblio.biblioId?.toString(),
                         ),
                       ),
                     );
