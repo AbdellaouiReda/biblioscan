@@ -104,10 +104,24 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
     }
   }
 
+  // 🔥 Méthode pour afficher les détails d'un livre
   void _showDetails(Livre livre) {
+    if (_token == null || _token!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("❌ Token manquant. Veuillez vous reconnecter."),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
-      builder: (context) => BookDetailsDialog(livre: livre),
+      builder: (context) => BookDetailsDialog(
+        livre: livre,
+        token: _token!,
+        onBookUpdated: _performSearch, // Rafraîchir les résultats après modification
+      ),
     );
   }
 
@@ -122,7 +136,14 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Recherche de livre")),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        title: const Text(
+          "Recherche de livre",
+          style: TextStyle(color: AppColors.textLight),
+        ),
+      ),
       body: Column(
         children: [
           // Formulaire avec 3 champs séparés
@@ -135,9 +156,13 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
                   controller: _titreController,
                   decoration: InputDecoration(
                     labelText: 'Titre du livre',
-                    prefixIcon: const Icon(Icons.book),
+                    prefixIcon: const Icon(Icons.book, color: AppColors.primary),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 2),
                     ),
                   ),
                 ),
@@ -148,9 +173,13 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
                   controller: _auteurController,
                   decoration: InputDecoration(
                     labelText: 'Auteur',
-                    prefixIcon: const Icon(Icons.person),
+                    prefixIcon: const Icon(Icons.person, color: AppColors.primary),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 2),
                     ),
                   ),
                 ),
@@ -162,9 +191,13 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     labelText: 'Année de publication (ex: 2019)',
-                    prefixIcon: const Icon(Icons.calendar_today),
+                    prefixIcon: const Icon(Icons.calendar_today, color: AppColors.primary),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 2),
                     ),
                   ),
                 ),
@@ -175,9 +208,10 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _performSearch,
-                    icon: const Icon(Icons.search),
-                    label: const Text("Rechercher"),
+                    icon: const Icon(Icons.search, color: AppColors.textLight),
+                    label: const Text("Rechercher", style: TextStyle(color: AppColors.textLight)),
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -192,7 +226,7 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
           // Résultats
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                 : _buildResultsList(),
           ),
         ],
@@ -203,11 +237,19 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
   Widget _buildResultsList() {
     if (!_searchPerformed) {
       return const Center(
-        child: Text("Remplissez au moins un champ pour rechercher."),
+        child: Text(
+          "Remplissez au moins un champ pour rechercher.",
+          style: AppTextStyles.subtitle,
+        ),
       );
     }
     if (_results.isEmpty) {
-      return const Center(child: Text("Aucun livre trouvé."));
+      return const Center(
+        child: Text(
+          "Aucun livre trouvé.",
+          style: AppTextStyles.subtitle,
+        ),
+      );
     }
     return ListView.builder(
       itemCount: _results.length,
@@ -238,7 +280,7 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
               // positions affichées en 1-based si ton modèle stocke en 0-based
               if (livre.positionLigne != null && livre.positionColonne != null)
                 Text(
-                  "Position: Ligne ${livre.positionLigne! + 1}, Colonne ${livre.positionColonne! + 1}",
+                  "Position: Ligne ${livre.positionLigne!}, Colonne ${livre.positionColonne!}",
                   style: AppTextStyles.subtitle,
                 )
               else
@@ -250,6 +292,7 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: ElevatedButton(
+                  style: AppButtonStyles.elevated,
                   onPressed: () => _showDetails(livre),
                   child: const Text("Plus d'informations"),
                 ),

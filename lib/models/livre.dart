@@ -7,7 +7,6 @@ class Livre {
   int? positionLigne; // 🔥 Rendu nullable
   int? positionColonne; // 🔥 Rendu nullable
   String? couvertureUrl;
-  bool correctionManuelle;
   String? token;
 
   Livre({
@@ -19,7 +18,6 @@ class Livre {
     this.positionLigne, // 🔥 Plus required
     this.positionColonne, // 🔥 Plus required
     this.couvertureUrl,
-    this.correctionManuelle = false,
     this.token,
   });
 
@@ -33,7 +31,6 @@ class Livre {
       positionLigne: json['position_ligne'], // 🔥 Peut être null
       positionColonne: json['position_colonne'], // 🔥 Peut être null
       couvertureUrl: json['couverture_url'],
-      correctionManuelle: json['correction_manuelle'] == 1,
       token: json['token'],
     );
   }
@@ -47,7 +44,6 @@ class Livre {
     'position_ligne': positionLigne,
     'position_colonne': positionColonne,
     'couverture_url': couvertureUrl,
-    'correction_manuelle': correctionManuelle ? 1 : 0,
     'token': token,
   };
 }
