@@ -1,8 +1,12 @@
 """BiblioScan FastAPI server - Main application entry point"""
-from fastapi import FastAPI, Request
+from typing import List
+
+from fastapi import FastAPI, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi import File, UploadFile
+from pydantic import BaseModel, Field
+from pydantic import ConfigDict
 import uvicorn
 
 # Import controllers
@@ -11,7 +15,44 @@ from controllers import upload_controller, detection_controller
 # =========================================================
 #  APP CONFIGURATION
 # =========================================================
-app = FastAPI(title="BiblioScan Détection Serveur", version="1.0")
+app = FastAPI(
+    title="BiblioScan Détection Serveur",
+    version="1.0",
+    description=(
+        "API FastAPI pour l'upload d'images de bibliothèques, la détection de livres "
+        "avec YOLO et l'extraction de texte via OCR (et agents LLM pour la résolution de titres)."
+    ),
+    contact={
+        "name": "BiblioScan",
+    },
+    license_info={
+        "name": "Propriétaire (usage interne)",
+    },
+    openapi_tags=[
+        {
+            "name": "Upload",
+            "description": "Endpoints pour téléverser les images à analyser.",
+        },
+        {
+            "name": "Détection",
+            "description": "Endpoints pour détecter les livres sur l'image et obtenir les images annotées.",
+        },
+        {
+            "name": "OCR",
+            "description": "Endpoints pour lancer l'OCR sur chaque livre détecté.",
+        },
+        {
+            "name": "Agents",
+            "description": "Endpoints pour utiliser des agents LLM afin de résoudre les titres des livres.",
+        },
+        {
+            "name": "Debug",
+            "description": "Endpoints internes pour servir les images de debug.",
+        },
+    ],
+    docs_url="/docs",   # Swagger UI
+    redoc_url="/redoc",  # ReDoc
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,34 +62,298 @@ app.add_middleware(
 )
 
 # =========================================================
+#  SCHEMA MODELS (for Swagger / OpenAPI)
+# =========================================================
+class UploadResponse(BaseModel):
+    message: str = Field(
+        ...,
+        description="Message de confirmation après upload.",
+        json_schema_extra={"example": " Image uploadée avec succès"},
+    )
+    path: str = Field(
+        ...,
+        description="Chemin du fichier image stocké côté serveur.",
+        json_schema_extra={"example": "uploaded.jpg"},
+    )
+
+
+class TextDetection(BaseModel):
+    text: str = Field(
+        ...,
+        json_schema_extra={"example": "Deep Learning"},
+    )
+    confidence: float = Field(
+        ...,
+        description="Confiance OCR en pourcentage (0-100).",
+        json_schema_extra={"example": 97.32},
+    )
+    bbox: List[List[float]] = Field(
+        ...,
+        description="Polygone de la boîte englobante dans l'image originale.",
+        json_schema_extra={
+            "example": [[12.0, 34.0], [56.0, 34.0], [56.0, 78.0], [12.0, 78.0]]
+        },
+    )
+    bbox_crop: List[List[float]] = Field(
+        ...,
+        description="Polygone de la boîte englobante dans le crop du livre.",
+        json_schema_extra={
+            "example": [[0.0, 0.0], [44.0, 0.0], [44.0, 40.0], [0.0, 40.0]]
+        },
+    )
+
+
+class BookOCR(BaseModel):
+    book_id: int = Field(
+        ...,
+        json_schema_extra={"example": 0},
+    )
+    bbox: List[int] = Field(
+        ...,
+        description="[x1, y1, x2, y2] dans l'image originale.",
+        json_schema_extra={"example": [10, 20, 200, 300]},
+    )
+    detection_confidence: float = Field(
+        ...,
+        description="Confiance YOLO (0-1).",
+        json_schema_extra={"example": 0.93},
+    )
+    class_name: str = Field(
+        ...,
+        alias="class",
+        description="Classe détectée par YOLO.",
+        json_schema_extra={"example": "book"},
+    )
+    text: str = Field(
+        ...,
+        description="Texte OCR nettoyé pour ce livre.",
+        json_schema_extra={"example": "Deep Learning with Python"},
+    )
+    ocr_confidence: float = Field(
+        ...,
+        description="Confiance moyenne OCR en pourcentage (0-100).",
+        json_schema_extra={"example": 89.5},
+    )
+    ocr_quality: str = Field(
+        ...,
+        description="Label qualitatif basé sur la confiance (excellent / good / fair / poor).",
+        json_schema_extra={"example": "excellent"},
+    )
+    num_text_detections: int = Field(
+        ...,
+        description="Nombre de régions de texte détectées.",
+        json_schema_extra={"example": 4},
+    )
+    text_detections: List[TextDetection]
+    crop_image: str = Field(
+        ...,
+        description="Chemin vers l'image crop du livre.",
+        json_schema_extra={"example": "/debug_crops/book_0.jpg"},
+    )
+    crop_image_annotated: str | None = Field(
+        None,
+        description="Chemin vers le crop annoté avec les régions OCR.",
+        json_schema_extra={"example": "/debug_crops/book_0_ocr.jpg"},
+    )
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+    )
+
+
+class BookWithAgent(BookOCR):
+    resolved_title: str = Field(
+        ...,
+        description="Titre final résolu par l'agent.",
+        json_schema_extra={
+            "example": "Deep Learning with Python, 2nd Edition",
+        },
+    )
+    agent_confidence: float = Field(
+        ...,
+        description="Confiance de l'agent en pourcentage (0-100).",
+        json_schema_extra={"example": 95.0},
+    )
+    agent_reasoning: str = Field(
+        ...,
+        description="Raisonnement textuel de l'agent pour justifier le titre.",
+        json_schema_extra={
+            "example": "L'OCR contient 'Deep Learning' et 'Python', croisé avec Google Books.",
+        },
+    )
+
+
+class DetectResponse(BaseModel):
+    num_books: int = Field(
+        ...,
+        json_schema_extra={"example": 3},
+    )
+    original_image: str = Field(
+        ...,
+        description="Chemin vers l'image originale sauvegardée.",
+        json_schema_extra={"example": "/debug_crops/original.jpg"},
+    )
+    annotated_image: str = Field(
+        ...,
+        description="Image originale annotée avec les bounding boxes YOLO.",
+        json_schema_extra={"example": "/debug_crops/debug_image.jpg"},
+    )
+
+
+class DetectAndOcrResponse(BaseModel):
+    num_books: int = Field(
+        ...,
+        json_schema_extra={"example": 3},
+    )
+    books: List[BookOCR]
+    annotated_image: str | None = Field(
+        ...,
+        description="Image annotée avec les boîtes de détection par livre.",
+        json_schema_extra={"example": "/debug_crops/all_books_detected.jpg"},
+    )
+    original_image: str | None = Field(
+        ...,
+        description="Copie de l'image originale utilisée pour la détection.",
+        json_schema_extra={"example": "/debug_crops/original.jpg"},
+    )
+
+
+class DetectOcrAgentResponse(BaseModel):
+    num_books: int = Field(
+        ...,
+        json_schema_extra={"example": 3},
+    )
+    books: List[BookWithAgent]
+    annotated_image: str | None = Field(
+        ...,
+        description="Image annotée avec les boîtes de détection et titres résolus.",
+        json_schema_extra={"example": "/debug_crops/all_books_detected.jpg"},
+    )
+    original_image: str | None = Field(
+        ...,
+        description="Copie de l'image originale utilisée pour la détection.",
+        json_schema_extra={"example": "/debug_crops/original.jpg"},
+    )
+
+
+# =========================================================
 #  ROUTES
 # =========================================================
-@app.post("/upload")
+@app.post(
+    "/upload",
+    response_model=UploadResponse,
+    tags=["Upload"],
+    summary="Uploader une image",
+    description="Téléverse une image unique qui sera utilisée par les endpoints de détection/OCR.",
+)
 async def upload_image(file: UploadFile = File(...)):
-    """Upload image endpoint"""
+    """Upload image endpoint."""
     return await upload_controller.upload_image(file)
 
-@app.post("/detect")
-async def detect(conf: float = 0.6, iou: float = 0.5):
-    """Detect books endpoint"""
+@app.post(
+    "/detect",
+    response_model=DetectResponse,
+    tags=["Détection"],
+    summary="Détecter les livres (YOLO seulement)",
+    description=(
+        "Utilise le dernier fichier uploadé pour détecter les livres avec YOLO "
+        "et renvoie une image annotée ainsi que le nombre de livres détectés."
+    ),
+)
+async def detect(
+    conf: float = Query(
+        0.6,
+        ge=0.0,
+        le=1.0,
+        description="Seuil de confiance YOLO (0-1).",
+    ),
+    iou: float = Query(
+        0.5,
+        ge=0.0,
+        le=1.0,
+        description="Seuil IOU pour la suppression de non-maxima (0-1).",
+    ),
+):
+    """Detect books endpoint."""
     return await detection_controller.detect(conf=conf, iou=iou)
 
-@app.post("/detect_and_ocr")
-async def detect_and_ocr(conf: float = 0.6, iou: float = 0.5):
-    """Detect books and run OCR endpoint"""
+
+@app.post(
+    "/detect_and_ocr",
+    response_model=DetectAndOcrResponse,
+    tags=["OCR"],
+    summary="Détecter les livres et lancer l'OCR",
+    description=(
+        "Détecte les livres sur l'image puis applique l'OCR sur chaque livre "
+        "pour extraire le texte et les régions de texte détectées."
+    ),
+)
+async def detect_and_ocr(
+    conf: float = Query(
+        0.6,
+        ge=0.0,
+        le=1.0,
+        description="Seuil de confiance YOLO (0-1).",
+    ),
+    iou: float = Query(
+        0.5,
+        ge=0.0,
+        le=1.0,
+        description="Seuil IOU pour la suppression de non-maxima (0-1).",
+    ),
+):
+    """Detect books and run OCR endpoint."""
     return await detection_controller.detect_and_ocr(conf=conf, iou=iou)
 
-@app.post("/detect_and_ocr_and_agent")
-async def detect_and_ocr_and_agent(conf: float = 0.6, iou: float = 0.5):
-    """Detect books, run OCR, and resolve titles using agents"""
+
+@app.post(
+    "/detect_and_ocr_and_agent",
+    response_model=DetectOcrAgentResponse,
+    tags=["Agents"],
+    summary="Détecter les livres, lancer l'OCR et utiliser les agents LLM",
+    description=(
+        "Pipeline complet : détection des livres, OCR par livre, puis appel d'agents "
+        "LLM pour proposer un titre final et un raisonnement pour chaque livre."
+    ),
+)
+async def detect_and_ocr_and_agent(
+    conf: float = Query(
+        0.6,
+        ge=0.0,
+        le=1.0,
+        description="Seuil de confiance YOLO (0-1).",
+    ),
+    iou: float = Query(
+        0.5,
+        ge=0.0,
+        le=1.0,
+        description="Seuil IOU pour la suppression de non-maxima (0-1).",
+    ),
+):
+    """Detect books, run OCR, and resolve titles using agents."""
     return await detection_controller.detect_and_ocr_and_agent(conf=conf, iou=iou)
 
-@app.get("/debug_crops/{filename}")
+
+@app.get(
+    "/debug_crops/{filename}",
+    tags=["Debug"],
+    summary="Servir une image de debug (crop)",
+)
 async def serve_crop(filename: str):
-    """Serve crop images for debugging"""
+    """Serve crop images for debugging."""
     return await detection_controller.serve_crop(filename)
 
-@app.get("/", response_class=HTMLResponse)
+
+@app.get(
+    "/",
+    response_class=HTMLResponse,
+    tags=["Debug"],
+    summary="Interface web de démonstration",
+    description=(
+        "Page HTML simple pour téléverser une image, lancer la détection/OCR "
+        "et visualiser les résultats."
+    ),
+)
 async def index(request: Request):
     """Web interface"""
     html = """
