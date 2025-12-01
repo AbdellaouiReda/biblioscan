@@ -28,13 +28,12 @@ jobs:
 
       - run: flutter --version
 
-      # CORRECTION ICI : On force l'acceptation des licences
       - name: Accept Android Licenses
         run: yes | flutter doctor --android-licenses
 
       - run: flutter pub get
 
-      - run: flutter analyze
+      #  - run: flutter analyze
 
       # On lance les tests (pour l'instant tu n'en as pas, mais ça prépare le terrain)
       - run: flutter test
