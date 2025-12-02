@@ -51,7 +51,7 @@ class _ListeLivresState extends State<ListeLivres> {
       return;
     }
 
-    // 1) Si des livres viennent du scan, on les envoie d’abord côté API
+    // 1) Si des livres viennent du scan, on les envoie d'abord côté API
     if (widget.scannedBooks != null && widget.scannedBooks!.isNotEmpty) {
       for (var livre in widget.scannedBooks!) {
         livre.biblioId = biblioId;              // s'assurer de la bonne biblio
@@ -59,7 +59,7 @@ class _ListeLivresState extends State<ListeLivres> {
       }
     }
 
-    // 2) Puis on recharge la liste complète depuis l’API
+    // 2) Puis on recharge la liste complète depuis l'API
     try {
       final apiBooks = await _bibService.voirBibliotheque(_token!, biblioId);
       if (!mounted) return;
@@ -71,12 +71,12 @@ class _ListeLivresState extends State<ListeLivres> {
       if (!mounted) return;
       setState(() => books = []);
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Impossible de charger les livres : $e")),
-          );
+        SnackBar(content: Text("❌ Impossible de charger les livres : $e")),
+      );
     }
   }
 
-  /// 🧾 Détails d’un livre
+  /// 🧾 Détails d'un livre
   void _showBookDetails(Livre book) {
     showDialog(
       context: context,
@@ -307,107 +307,229 @@ class _ListeLivresState extends State<ListeLivres> {
     });
   }
 
+  /// ➕ Ajouter un livre manuellement
+  void _addLivre() {
+    String titre = "";
+    String auteur = "";
+    String datePub = "";
+    int positionLigne = 1;
+    int positionColonne = 1;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.background,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: const Text("Ajouter un livre", style: AppTextStyles.title),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  decoration: const InputDecoration(labelText: "Titre *"),
+                  onChanged: (val) => titre = val,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(labelText: "Auteur"),
+                  onChanged: (val) => auteur = val,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(labelText: "Année de publication"),
+                  keyboardType: TextInputType.number,
+                  onChanged: (val) => datePub = val,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(labelText: "Numéro d'étagère"),
+                  keyboardType: TextInputType.number,
+                  onChanged: (val) => positionLigne = int.tryParse(val) ?? 1,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(labelText: "Numéro de colonne"),
+                  keyboardType: TextInputType.number,
+                  onChanged: (val) => positionColonne = int.tryParse(val) ?? 1,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              style: AppButtonStyles.text,
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Annuler"),
+            ),
+            ElevatedButton(
+              style: AppButtonStyles.elevated,
+              onPressed: () async {
+                if (titre.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("❌ Le titre est obligatoire.")),
+                  );
+                  return;
+                }
+
+                if (_token == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
+                  );
+                  return;
+                }
+
+                try {
+                  // Créer le nouveau livre
+                  final nouveauLivre = Livre(
+                    biblioId: widget.library.biblioId,
+                    titre: titre.trim(),
+                    auteur: auteur.trim().isEmpty ? null : auteur.trim(),
+                    datePub: datePub.trim().isEmpty ? null : datePub.trim(),
+                    positionLigne: positionLigne,
+                    positionColonne: positionColonne,
+                  );
+
+                  // ✅ Appel via la classe service
+                  final ok = await _livreService.ajouterLivre(_token!, nouveauLivre);
+
+                  if (ok) {
+                    if (!mounted) return;
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("✅ Livre ajouté : $titre")),
+                    );
+                    // Recharger la liste des livres
+                    await _loadBooks();
+                  } else {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("❌ Échec de l'ajout du livre.")),
+                    );
+                  }
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("❌ Erreur lors de l'ajout : $e")),
+                  );
+                }
+              },
+              child: const Text("Ajouter"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          backgroundColor: AppColors.primary,
-          title: Text(
-            widget.library.nom,
-            style: AppTextStyles.title.copyWith(color: AppColors.textLight),
-          ),
-          actions: [
-            if (_selectionMode) ...[
-              IconButton(
-                icon: Icon(
-                  _selectedIndexes.length == books.length
-                      ? Icons.deselect
-                      : Icons.select_all,
-                  color: Colors.white,
-                ),
-                tooltip: _selectedIndexes.length == books.length
-                    ? 'Tout désélectionner'
-                    : 'Tout sélectionner',
-                onPressed: _toggleSelectAll,
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.white),
-                tooltip: 'Supprimer la sélection',
-                onPressed: _deleteSelectedBooks,
-              ),
-            ]
-          ],
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        title: Text(
+          widget.library.nom,
+          style: AppTextStyles.title.copyWith(color: AppColors.textLight),
         ),
-        body: books.isEmpty
-            ? const Center(child: Text("Aucun livre détecté"))
-            : GridView.builder(
-            padding: const EdgeInsets.all(12),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.8,
+        actions: [
+          if (_selectionMode) ...[
+            IconButton(
+              icon: Icon(
+                _selectedIndexes.length == books.length
+                    ? Icons.deselect
+                    : Icons.select_all,
+                color: Colors.white,
+              ),
+              tooltip: _selectedIndexes.length == books.length
+                  ? 'Tout désélectionner'
+                  : 'Tout sélectionner',
+              onPressed: _toggleSelectAll,
             ),
-            itemCount: books.length,
-            itemBuilder: (context, i) {
-              final book = books[i];
-              final isSelected = _selectedIndexes.contains(i);
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.white),
+              tooltip: 'Supprimer la sélection',
+              onPressed: _deleteSelectedBooks,
+            ),
+          ]
+        ],
+      ),
+      body: books.isEmpty
+          ? const Center(child: Text("Aucun livre détecté"))
+          : GridView.builder(
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.8,
+        ),
+        itemCount: books.length,
+        itemBuilder: (context, i) {
+          final book = books[i];
+          final isSelected = _selectedIndexes.contains(i);
 
-              return GestureDetector(
-                onLongPress: () => _toggleSelection(i),
-                onTap: () {
-                  if (_selectionMode) {
-                    _toggleSelection(i);
-                  } else {
-                    _showBookDetails(book);
-                  }
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.primary.withOpacity(0.2)
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.primary
-                          : Colors.grey.shade300,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.menu_book,
-                            color: AppColors.primary, size: 40),
-                        const SizedBox(height: 8),
-                        Text(
-                          book.titre,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        Text(
-                          book.auteur ?? "Auteur inconnu",
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        const Spacer(),
-                        Text(
-                          "📍 Ét. ${book.positionLigne } • Col. ${book.positionColonne}",
-                          style: const TextStyle(
-                              fontSize: 11, fontStyle: FontStyle.italic),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
+          return GestureDetector(
+            onLongPress: () => _toggleSelection(i),
+            onTap: () {
+              if (_selectionMode) {
+                _toggleSelection(i);
+              } else {
+                _showBookDetails(book);
+              }
             },
+            child: Container(
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primary.withOpacity(0.2)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isSelected
+                      ? AppColors.primary
+                      : Colors.grey.shade300,
+                  width: 1.5,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.menu_book,
+                        color: AppColors.primary, size: 40),
+                    const SizedBox(height: 8),
+                    Text(
+                      book.titre,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    Text(
+                      book.auteur ?? "Auteur inconnu",
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    const Spacer(),
+                    Text(
+                      "📍 Ét. ${book.positionLigne } • Col. ${book.positionColonne}",
+                      style: const TextStyle(
+                          fontSize: 11, fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ),
+              ),
             ),
-        );
-    }
+          );
+        },
+      ),
+      floatingActionButton: !_selectionMode
+          ? FloatingActionButton(
+        backgroundColor: AppColors.primary,
+        onPressed: _addLivre,
+        child: const Icon(Icons.add, color: AppColors.textLight),
+      )
+          : null,
+    );
+  }
 }
