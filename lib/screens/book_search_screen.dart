@@ -87,7 +87,7 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
         token: _token!,
         titre: titre,
         auteur: auteur,
-        datePub: dateStr, // <-- passe la date en String si présente
+        datePub: dateStr,
       );
 
       if (!mounted) return;
@@ -275,6 +275,11 @@ class _BookSearchScreenState extends State<BookSearchScreen> {
               if (livre.datePub != null && livre.datePub!.isNotEmpty)
                 Text(
                   "Date: ${livre.datePub}", // <-- String directement
+                  style: AppTextStyles.subtitle,
+                ),
+              if (livre.bibNom != null && livre.bibNom!.isNotEmpty)
+                Text(
+                  "Bibliotheque: ${livre.bibNom!}",
                   style: AppTextStyles.subtitle,
                 ),
               // positions affichées en 1-based si ton modèle stocke en 0-based

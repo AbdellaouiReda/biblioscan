@@ -18,9 +18,9 @@ class LivreService {
   Future<bool> ajouterLivre(String token, Livre livre) async {
     try {
       final body = <String, dynamic>{
-        'biblio_id': livre.biblioId,                // int?
-        'position_ligne': livre.positionLigne,      // int?
-        'position_colonne': livre.positionColonne,  // int?
+        'biblio_id': livre.biblioId,
+        'position_ligne': livre.positionLigne,
+        'position_colonne': livre.positionColonne,
       };
 
       _putIfNotEmpty(body, 'titre', livre.titre);
@@ -114,7 +114,8 @@ class LivreService {
   Future<bool> modifierLivre(String token, Livre livre) async {
     try {
       final body = <String, dynamic>{
-        'livre_id': livre.livreId,                  // requis par le backend
+        'livre_id': livre.livreId,
+        'biblio_id': livre.biblioId,
         'position_ligne': livre.positionLigne,
         'position_colonne': livre.positionColonne,
       };
@@ -136,6 +137,8 @@ class LivreService {
       )
           .timeout(_timeout);
 
+      print("📥 Réponse API : ${response.statusCode}");  // 🔥 Log pour debug
+
       if (response.statusCode == 200) {
         if (response.body.isEmpty) return true;
         final decoded = jsonDecode(response.body);
@@ -143,11 +146,11 @@ class LivreService {
         return true;
       }
       return false;
-    } catch (_) {
+    } catch (e) {
+      print("❌ Erreur modifierLivre : $e");  // 🔥 Log pour debug
       return false;
     }
   }
-
   /// 🔹 Supprimer un livre
   Future<bool> supprimerLivre(String token, int livreId) async {
     try {

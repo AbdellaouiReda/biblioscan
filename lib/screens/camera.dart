@@ -12,8 +12,8 @@ import '../models/bibliotheque.dart';
 enum CameraAspect { ratio169, ratio11 }
 
 // 🔹 Dimensions globales du cadre de scan
-const double kScanFrameWidth = 280.0;
-const double kScanFrameHeight = 200.0;
+const double kScanFrameWidth = 300.0;
+const double kScanFrameHeight = 280.0;
 
 class Camera extends StatefulWidget {
   final int rows;
@@ -145,7 +145,6 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
     }
   }
 
-  // 🔹 Fonction pour cropper l'image selon la zone de scan
   Future<File> _cropImageToScanArea(String imagePath) async {
     final imageFile = File(imagePath);
     final imageBytes = await imageFile.readAsBytes();
@@ -178,10 +177,13 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
       height: cropHeight,
     );
 
-    // Sauvegarder l'image croppée
+    // Rotation de 90° vers la droite
+    final rotatedImage = img.copyRotate(croppedImage, angle: 90);
+
+    // Sauvegarder l'image croppée et pivotée
     final croppedPath = imagePath.replaceAll('.jpg', '_cropped.jpg');
     final croppedFile = File(croppedPath);
-    await croppedFile.writeAsBytes(img.encodeJpg(croppedImage));
+    await croppedFile.writeAsBytes(img.encodeJpg(rotatedImage));
 
     return croppedFile;
   }

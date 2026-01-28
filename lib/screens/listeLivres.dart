@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/livre.dart';
-import '../models/bibliotheque.dart'; // ⚠ casse alignée avec AccesBib
+import '../models/bibliotheque.dart';
 import '../theme/app_theme.dart';
 
-// Services réseau
 import '../services/bib_services.dart';
 import '../services/livre_services.dart';
 
 class ListeLivres extends StatefulWidget {
-  final Bibliotheque library; // ✅ non-nullable
+  final Bibliotheque library;
   final List<Livre>? scannedBooks;
 
   const ListeLivres({super.key, required this.library, this.scannedBooks});
@@ -20,9 +19,7 @@ class ListeLivres extends StatefulWidget {
 }
 
 class _ListeLivresState extends State<ListeLivres> {
-  late List<Livre> books;
-  bool _selectionMode = false;
-  final Set<int> _selectedIndexes = {};
+  List<Livre> books = [];
 
   SharedPreferences? _prefs;
   String? _token;
@@ -33,7 +30,6 @@ class _ListeLivresState extends State<ListeLivres> {
   @override
   void initState() {
     super.initState();
-    books = [];
     _initAndLoad();
   }
 
@@ -45,42 +41,97 @@ class _ListeLivresState extends State<ListeLivres> {
 
   Future<void> _loadBooks() async {
     final biblioId = widget.library.biblioId;
-    if (_token == null || biblioId == null) {
-      if (!mounted) return;
-      setState(() => books = []);
-      return;
-    }
+    if (_token == null || biblioId == null) return;
 
-    // 1) Si des livres viennent du scan, on les envoie d'abord côté API
-    if (widget.scannedBooks != null && widget.scannedBooks!.isNotEmpty) {
+    if (widget.scannedBooks != null) {
       for (var livre in widget.scannedBooks!) {
-        livre.biblioId = biblioId;              // s'assurer de la bonne biblio
+        livre.biblioId = biblioId;
         await _livreService.ajouterLivre(_token!, livre);
       }
     }
 
-    // 2) Puis on recharge la liste complète depuis l'API
-    try {
-      final apiBooks = await _bibService.voirBibliotheque(_token!, biblioId);
-      if (!mounted) return;
-      setState(() {
-        books = apiBooks;
-      });
-    } catch (e) {
-      // En cas d'erreur, on évite le crash et on vide la liste
-      if (!mounted) return;
-      setState(() => books = []);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Impossible de charger les livres : $e")),
-      );
-    }
+    final apiBooks = await _bibService.voirBibliotheque(_token!, biblioId);
+    if (!mounted) return;
+    setState(() => books = apiBooks);
   }
 
-  /// 🧾 Détails d'un livre
+  // ================= UI =================
+
+  @override
+  Widget build(BuildContext context) {
+    final shelves = <int, List<Livre>>{};
+    for (final livre in books) {
+      final key = livre.positionLigne ?? 1;
+      shelves.putIfAbsent(key, () => []).add(livre);
+    }
+
+    final shelfKeys = shelves.keys.toList()..sort();
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        title: Text(
+          widget.library.nom,
+          style: AppTextStyles.title.copyWith(color: AppColors.textLight),
+        ),
+      ),
+
+      /// ✅ BOUTON AJOUT — TOUJOURS ACTIF
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.primary,
+        onPressed: _addLivre,
+        child: const Icon(Icons.add, color: AppColors.textLight),
+      ),
+
+      body: books.isEmpty
+          ? const Center(child: Text("Aucun livre détecté"))
+          : ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        itemCount: shelfKeys.length,
+        itemBuilder: (context, index) {
+          final shelf = shelfKeys[index];
+          final shelfBooks = shelves[shelf]!;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Text(
+                  "Étagère $shelf",
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+              SizedBox(
+                height: 200,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: shelfBooks.length,
+                  itemBuilder: (context, i) {
+                    return _BookWidget(
+                      book: shelfBooks[i],
+                      onTap: () => _showBookDetails(shelfBooks[i]),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ================= BOOK DETAILS =================
+
   void _showBookDetails(Livre book) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (_) => AlertDialog(
         title: Text(book.titre, style: AppTextStyles.title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -88,30 +139,28 @@ class _ListeLivresState extends State<ListeLivres> {
           children: [
             _detailLine("Auteur", book.auteur ?? "Inconnu"),
             _detailLine("Année", book.datePub ?? "N/A"),
-            _detailLine("Étagère", (book.positionLigne).toString()),
-            _detailLine("Colonne", (book.positionColonne).toString()),
+            _detailLine("Étagère", book.positionLigne.toString()),
+            _detailLine("Colonne", book.positionColonne.toString()),
           ],
         ),
         actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'edit') {
-                Navigator.pop(context);
-                _editBook(book);
-              } else if (value == 'delete') {
-                Navigator.pop(context);
-                _deleteBook(book);
-              }
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _editBook(book);
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'edit', child: Text('Modifier')),
-              PopupMenuItem(value: 'delete', child: Text('Supprimer')),
-            ],
-            child: const Icon(Icons.more_vert, color: AppColors.primary),
+            child: const Text("Modifier"),
           ),
           TextButton(
-            child: const Text("Fermer"),
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteBook(book);
+            },
+            child: const Text("Supprimer"),
+          ),
+          TextButton(
             onPressed: () => Navigator.pop(context),
+            child: const Text("Fermer"),
           ),
         ],
       ),
@@ -121,112 +170,59 @@ class _ListeLivresState extends State<ListeLivres> {
   Widget _detailLine(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Text("$label : ",
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
-        ],
-      ),
+      child: Text("$label : $value"),
     );
   }
 
-  /// ✏ Modifier un livre
+  // ================= CRUD =================
+
+  Future<void> _deleteBook(Livre book) async {
+    if (_token == null || book.livreId == null) return;
+    await _livreService.supprimerLivre(_token!, book.livreId!);
+    await _loadBooks();
+  }
+
   void _editBook(Livre book) {
     final titleCtrl = TextEditingController(text: book.titre);
     final authorCtrl = TextEditingController(text: book.auteur ?? "");
     final yearCtrl = TextEditingController(text: book.datePub ?? "");
-    final shelfCtrl = TextEditingController(text: (book.positionLigne ).toString());
-    final colCtrl = TextEditingController(text: (book.positionColonne ).toString());
+    final shelfCtrl =
+    TextEditingController(text: book.positionLigne.toString());
+    final colCtrl =
+    TextEditingController(text: book.positionColonne.toString());
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Modifier les informations"),
+        title: const Text("Modifier le livre"),
         content: SingleChildScrollView(
           child: Column(
             children: [
-              TextField(
-                controller: titleCtrl,
-                decoration: const InputDecoration(labelText: "Titre"),
-              ),
-              TextField(
-                controller: authorCtrl,
-                decoration: const InputDecoration(labelText: "Auteur"),
-              ),
-              TextField(
-                controller: yearCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Année"),
-              ),
-              TextField(
-                controller: shelfCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Étagère"),
-              ),
-              TextField(
-                controller: colCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Colonne"),
-              ),
+              TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: "Titre")),
+              TextField(controller: authorCtrl, decoration: const InputDecoration(labelText: "Auteur")),
+              TextField(controller: yearCtrl, decoration: const InputDecoration(labelText: "Année")),
+              TextField(controller: shelfCtrl, decoration: const InputDecoration(labelText: "Étagère")),
+              TextField(controller: colCtrl, decoration: const InputDecoration(labelText: "Colonne")),
             ],
           ),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Annuler")),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
           ElevatedButton(
             onPressed: () async {
-              if (_token == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
-                );
-                return;
-              }
-
-              DateTime? newDate;
-              final year = int.tryParse(yearCtrl.text.trim());
-              if (year != null && year > 0) {
-                newDate = DateTime(year);
-              } else {
-                newDate = null;
-              }
-
               final updated = Livre(
                 livreId: book.livreId,
                 biblioId: book.biblioId,
                 titre: titleCtrl.text.trim(),
-                auteur: authorCtrl.text.trim().isEmpty ? null : authorCtrl.text.trim(),
-                datePub: yearCtrl.text.trim().isNotEmpty? yearCtrl.text.trim():book.datePub,
-                positionLigne: int.tryParse(shelfCtrl.text.trim()) != null
-                    ? int.parse(shelfCtrl.text.trim())
-                    : book.positionLigne,
-                positionColonne: int.tryParse(colCtrl.text.trim()) != null
-                    ? int.parse(colCtrl.text.trim())
-                    : book.positionColonne,
+                auteur: authorCtrl.text.trim(),
+                datePub: yearCtrl.text.trim(),
+                positionLigne: int.tryParse(shelfCtrl.text) ?? book.positionLigne,
+                positionColonne: int.tryParse(colCtrl.text) ?? book.positionColonne,
               );
-
-              final ok = await _livreService.modifierLivre(_token!, updated);
-              if (ok) {
-                if (!mounted) return;
-                setState(() {
-                  final i = books.indexOf(book);
-                  if (i != -1) books[i] = updated;
-                });
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("✅ Livre modifié")),
-                  );
-                }
-              } else {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("❌ Échec de la modification.")),
-                  );
-                }
-              }
+              await _livreService.modifierLivre(_token!, updated);
+              if (!mounted) return;
+              Navigator.pop(context);
+              await _loadBooks();
             },
             child: const Text("Sauvegarder"),
           ),
@@ -235,79 +231,8 @@ class _ListeLivresState extends State<ListeLivres> {
     );
   }
 
-  /// 🗑 Supprimer un seul livre
-  Future<void> _deleteBook(Livre book) async {
-    if (_token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
-      );
-      return;
-    }
+  // ================= ADD BOOK =================
 
-    if (book.livreId != null) {
-      await _livreService.supprimerLivre(_token!, book.livreId!);
-    }
-    if (!mounted) return;
-    setState(() => books.remove(book));
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("🗑 '${book.titre}' supprimé")),
-    );
-  }
-
-  Future<void> _deleteSelectedBooks() async {
-    if (_token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
-      );
-      return;
-    }
-
-    final toDelete = _selectedIndexes.map((i) => books[i]).toList();
-
-    for (var livre in toDelete) {
-      if (livre.livreId != null) {
-        await _livreService.supprimerLivre(_token!, livre.livreId!);
-      }
-    }
-
-    if (!mounted) return;
-    setState(() {
-      books.removeWhere((livre) => toDelete.contains(livre));
-      _selectedIndexes.clear();
-      _selectionMode = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("🗑 Livres supprimés")),
-    );
-  }
-
-  void _toggleSelectAll() {
-    setState(() {
-      if (_selectedIndexes.length == books.length) {
-        _selectedIndexes.clear();
-        _selectionMode = false;
-      } else {
-        _selectedIndexes.clear();
-        _selectedIndexes.addAll(List.generate(books.length, (index) => index));
-        _selectionMode = true;
-      }
-    });
-  }
-
-  void _toggleSelection(int index) {
-    setState(() {
-      if (_selectedIndexes.contains(index)) {
-        _selectedIndexes.remove(index);
-      } else {
-        _selectedIndexes.add(index);
-      }
-      _selectionMode = _selectedIndexes.isNotEmpty;
-    });
-  }
-
-  /// ➕ Ajouter un livre manuellement
   void _addLivre() {
     String titre = "";
     String auteur = "";
@@ -317,219 +242,80 @@ class _ListeLivresState extends State<ListeLivres> {
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.background,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: const Text("Ajouter un livre", style: AppTextStyles.title),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  decoration: const InputDecoration(labelText: "Titre *"),
-                  onChanged: (val) => titre = val,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  decoration: const InputDecoration(labelText: "Auteur"),
-                  onChanged: (val) => auteur = val,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  decoration: const InputDecoration(labelText: "Année de publication"),
-                  keyboardType: TextInputType.number,
-                  onChanged: (val) => datePub = val,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  decoration: const InputDecoration(labelText: "Numéro d'étagère"),
-                  keyboardType: TextInputType.number,
-                  onChanged: (val) => positionLigne = int.tryParse(val) ?? 1,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  decoration: const InputDecoration(labelText: "Numéro de colonne"),
-                  keyboardType: TextInputType.number,
-                  onChanged: (val) => positionColonne = int.tryParse(val) ?? 1,
-                ),
-              ],
-            ),
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text("Ajouter un livre"),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(decoration: const InputDecoration(labelText: "Titre *"), onChanged: (v) => titre = v),
+              TextField(decoration: const InputDecoration(labelText: "Auteur"), onChanged: (v) => auteur = v),
+              TextField(decoration: const InputDecoration(labelText: "Année"), onChanged: (v) => datePub = v),
+              TextField(decoration: const InputDecoration(labelText: "Étagère"), onChanged: (v) => positionLigne = int.tryParse(v) ?? 1),
+              TextField(decoration: const InputDecoration(labelText: "Colonne"), onChanged: (v) => positionColonne = int.tryParse(v) ?? 1),
+            ],
           ),
-          actions: [
-            TextButton(
-              style: AppButtonStyles.text,
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Annuler"),
-            ),
-            ElevatedButton(
-              style: AppButtonStyles.elevated,
-              onPressed: () async {
-                if (titre.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("❌ Le titre est obligatoire.")),
-                  );
-                  return;
-                }
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+          ElevatedButton(
+            onPressed: () async {
+              if (titre.isEmpty || _token == null) return;
 
-                if (_token == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
-                  );
-                  return;
-                }
+              final livre = Livre(
+                biblioId: widget.library.biblioId,
+                titre: titre,
+                auteur: auteur.isEmpty ? null : auteur,
+                datePub: datePub.isEmpty ? null : datePub,
+                positionLigne: positionLigne,
+                positionColonne: positionColonne,
+              );
 
-                try {
-                  // Créer le nouveau livre
-                  final nouveauLivre = Livre(
-                    biblioId: widget.library.biblioId,
-                    titre: titre.trim(),
-                    auteur: auteur.trim().isEmpty ? null : auteur.trim(),
-                    datePub: datePub.trim().isEmpty ? null : datePub.trim(),
-                    positionLigne: positionLigne,
-                    positionColonne: positionColonne,
-                  );
-
-                  // ✅ Appel via la classe service
-                  final ok = await _livreService.ajouterLivre(_token!, nouveauLivre);
-
-                  if (ok) {
-                    if (!mounted) return;
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("✅ Livre ajouté : $titre")),
-                    );
-                    // Recharger la liste des livres
-                    await _loadBooks();
-                  } else {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("❌ Échec de l'ajout du livre.")),
-                    );
-                  }
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("❌ Erreur lors de l'ajout : $e")),
-                  );
-                }
-              },
-              child: const Text("Ajouter"),
-            ),
-          ],
-        );
-      },
+              await _livreService.ajouterLivre(_token!, livre);
+              if (!mounted) return;
+              Navigator.pop(context);
+              await _loadBooks();
+            },
+            child: const Text("Ajouter"),
+          ),
+        ],
+      ),
     );
   }
+}
+
+// ================= BOOK WIDGET =================
+
+class _BookWidget extends StatelessWidget {
+  final Livre book;
+  final VoidCallback onTap;
+
+  const _BookWidget({required this.book, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        title: Text(
-          widget.library.nom,
-          style: AppTextStyles.title.copyWith(color: AppColors.textLight),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 120,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade300),
         ),
-        actions: [
-          if (_selectionMode) ...[
-            IconButton(
-              icon: Icon(
-                _selectedIndexes.length == books.length
-                    ? Icons.deselect
-                    : Icons.select_all,
-                color: Colors.white,
-              ),
-              tooltip: _selectedIndexes.length == books.length
-                  ? 'Tout désélectionner'
-                  : 'Tout sélectionner',
-              onPressed: _toggleSelectAll,
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.white),
-              tooltip: 'Supprimer la sélection',
-              onPressed: _deleteSelectedBooks,
-            ),
-          ]
-        ],
-      ),
-      body: books.isEmpty
-          ? const Center(child: Text("Aucun livre détecté"))
-          : GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.8,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: book.couvertureUrl != null
+              ? Image.network(
+            book.couvertureUrl!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+            const Icon(Icons.menu_book, size: 50),
+          )
+              : const Icon(Icons.menu_book, size: 50),
         ),
-        itemCount: books.length,
-        itemBuilder: (context, i) {
-          final book = books[i];
-          final isSelected = _selectedIndexes.contains(i);
-
-          return GestureDetector(
-            onLongPress: () => _toggleSelection(i),
-            onTap: () {
-              if (_selectionMode) {
-                _toggleSelection(i);
-              } else {
-                _showBookDetails(book);
-              }
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.primary.withOpacity(0.2)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isSelected
-                      ? AppColors.primary
-                      : Colors.grey.shade300,
-                  width: 1.5,
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.menu_book,
-                        color: AppColors.primary, size: 40),
-                    const SizedBox(height: 8),
-                    Text(
-                      book.titre,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    Text(
-                      book.auteur ?? "Auteur inconnu",
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    const Spacer(),
-                    Text(
-                      "📍 Ét. ${book.positionLigne } • Col. ${book.positionColonne}",
-                      style: const TextStyle(
-                          fontSize: 11, fontStyle: FontStyle.italic),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
       ),
-      floatingActionButton: !_selectionMode
-          ? FloatingActionButton(
-        backgroundColor: AppColors.primary,
-        onPressed: _addLivre,
-        child: const Icon(Icons.add, color: AppColors.textLight),
-      )
-          : null,
     );
   }
 }
