@@ -7,7 +7,7 @@ import '../theme/app_theme.dart';
 // Services sous forme de classes (comme dans ton autre écran)
 import '../services/bib_services.dart';
 import '../services/auth_service.dart';
-import '../services/livre_services.dart';
+
 
 
 import 'listeLivres.dart';
@@ -47,7 +47,7 @@ class _AccesBibState extends State<AccesBib> {
     _token = prefs!.getString('token');
     _userId = prefs!.getInt('userId');
     if (!mounted) return;
-    setState(() {}); // rafraîchit l'UI
+    setState(() {});
     await _refreshLibraries();
   }
 

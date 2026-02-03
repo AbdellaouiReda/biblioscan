@@ -62,6 +62,10 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
   String? _biblioId;
   SharedPreferences? _prefs;
 
+  XFile? _recordedVideo;
+  bool _isProcessing = false;
+
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +82,58 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
       curve: Curves.easeOutBack,
     );
   }
+
+
+  Future<void> _startVideoRecording() async {
+    if (_controller.value.isRecordingVideo || _isProcessing) return;
+
+    try {
+      await _controller.startVideoRecording();
+      setState(() => _isRecording = true);
+    } catch (e) {
+      print("❌ Erreur start video: $e");
+    }
+  }
+
+
+  Future<void> _stopVideoRecording() async {
+    if (!_controller.value.isRecordingVideo) return;
+
+    try {
+      setState(() {
+        _isRecording = false;
+        _isProcessing = true;
+      });
+
+      _recordedVideo = await _controller.stopVideoRecording();
+
+      final token = _token;
+      final biblioId =
+      widget.biblioId != null ? int.tryParse(widget.biblioId!) ?? 0 : 0;
+
+      if (token != null && biblioId > 0 && _recordedVideo != null) {
+        final (uploadRes, detectRes) =
+        await _camService.sendVideoAndDetect(
+          videoPath: _recordedVideo!.path,
+          biblioId: biblioId,
+          positionLigne: selectedRow,
+          positionColonne: selectedColumn,
+          bearerToken: token,
+        );
+
+        print("🎥 Upload vidéo: $uploadRes");
+        print("🔎 Detect vidéo: $detectRes");
+      }
+
+      _triggerPopMessage();
+    } catch (e) {
+      print("❌ Erreur stop video: $e");
+    } finally {
+      setState(() => _isProcessing = false);
+    }
+  }
+
+
 
   Future<void> _initCamera([CameraDescription? camera]) async {
     _prefs = await SharedPreferences.getInstance();
@@ -196,6 +252,7 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
   }
 
   void _switchCamera() {
+    if (_isRecording) return;
     final lensDirection = _controller.description.lensDirection;
     final newCamera = _cameras.firstWhere(
           (cam) => cam.lensDirection != lensDirection,
@@ -204,7 +261,11 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
     _initCamera(newCamera);
   }
 
-  void _toggleMode() => setState(() => _isVideoMode = !_isVideoMode);
+  void _toggleMode() {
+    if (_isRecording) return;
+    setState(() => _isVideoMode = !_isVideoMode);
+  }
+
 
   void _toggleFlash() async {
     if (_isVideoMode) {
@@ -515,7 +576,21 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
                   onPressed: _toggleMode,
                 ),
                 GestureDetector(
-                  onTap: _capture,
+                  onTap: () {
+                    if (_isProcessing) return;
+
+                    if (!_isVideoMode) {
+                      // Mode Photo
+                      _capture();
+                    } else {
+                      // Mode Vidéo
+                      if (_isRecording) {
+                        _stopVideoRecording();
+                      } else {
+                        _startVideoRecording();
+                      }
+                    }
+                  },
                   child: Container(
                     width: 75,
                     height: 75,

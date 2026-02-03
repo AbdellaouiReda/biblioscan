@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'accesBib.dart';
-import '../services/auth_service.dart'; // 🔹 Import du service
+import '../services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,9 +14,8 @@ class _LoginPageState extends State<LoginPage> {
   final _user = TextEditingController();
   final _pwd = TextEditingController();
   bool _obscure = true;
-  bool _isLoading = false; // 🔹 Indique si la requête est en cours
+  bool _isLoading = false;
 
-  // ✅ Singleton AuthService
   final AuthService _authService = AuthService();
 
   @override

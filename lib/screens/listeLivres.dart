@@ -7,6 +7,8 @@ import '../theme/app_theme.dart';
 
 import '../services/bib_services.dart';
 import '../services/livre_services.dart';
+import 'BookCoverWidget.dart';
+import 'book_details_dialog.dart';
 
 class ListeLivres extends StatefulWidget {
   final Bibliotheque library;
@@ -20,6 +22,9 @@ class ListeLivres extends StatefulWidget {
 
 class _ListeLivresState extends State<ListeLivres> {
   List<Livre> books = [];
+  List<Livre> selectedBooks = [];
+
+  bool selectionMode = false; // ✅ MODE SÉLECTION (GALERIE)
 
   SharedPreferences? _prefs;
   String? _token;
@@ -52,10 +57,31 @@ class _ListeLivresState extends State<ListeLivres> {
 
     final apiBooks = await _bibService.voirBibliotheque(_token!, biblioId);
     if (!mounted) return;
-    setState(() => books = apiBooks);
+
+    setState(() {
+      books = apiBooks;
+      selectedBooks.clear();
+      selectionMode = false;
+    });
   }
 
-  // ================= UI =================
+  // ================= SUPPRESSION =================
+  Future<void> _deleteSelectedBooks() async {
+    if (_token == null) return;
+
+    for (final livre in selectedBooks) {
+      if (livre.livreId != null) {
+        await _livreService.supprimerLivre(_token!, livre.livreId!);
+      }
+    }
+
+    setState(() {
+      selectedBooks.clear();
+      selectionMode = false;
+    });
+
+    await _loadBooks();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,15 +95,23 @@ class _ListeLivresState extends State<ListeLivres> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         title: Text(
           widget.library.nom,
           style: AppTextStyles.title.copyWith(color: AppColors.textLight),
         ),
+        actions: selectionMode
+            ? [
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.white),
+            onPressed: _deleteSelectedBooks,
+          ),
+        ]
+            : [],
       ),
 
-      /// ✅ BOUTON AJOUT — TOUJOURS ACTIF
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
         onPressed: _addLivre,
@@ -97,8 +131,8 @@ class _ListeLivresState extends State<ListeLivres> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 6),
                 child: Text(
                   "Étagère $shelf",
                   style: const TextStyle(
@@ -109,12 +143,41 @@ class _ListeLivresState extends State<ListeLivres> {
                 height: 200,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 12),
                   itemCount: shelfBooks.length,
                   itemBuilder: (context, i) {
+                    final book = shelfBooks[i];
+
                     return _BookWidget(
-                      book: shelfBooks[i],
-                      onTap: () => _showBookDetails(shelfBooks[i]),
+                      book: book,
+                      isSelected: selectedBooks.contains(book),
+
+                      // ✅ APPUI LONG → MODE SÉLECTION
+                      onLongPress: () {
+                        setState(() {
+                          selectionMode = true;
+                          selectedBooks.add(book);
+                        });
+                      },
+
+                      // ✅ TAP → SÉLECTION OU DÉTAILS
+                      onTap: () {
+                        if (selectionMode) {
+                          setState(() {
+                            if (selectedBooks.contains(book)) {
+                              selectedBooks.remove(book);
+                              if (selectedBooks.isEmpty) {
+                                selectionMode = false;
+                              }
+                            } else {
+                              selectedBooks.add(book);
+                            }
+                          });
+                        } else {
+                          _showBookDetails(book);
+                        }
+                      },
                     );
                   },
                 ),
@@ -126,113 +189,22 @@ class _ListeLivresState extends State<ListeLivres> {
     );
   }
 
-  // ================= BOOK DETAILS =================
-
   void _showBookDetails(Livre book) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(book.titre, style: AppTextStyles.title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _detailLine("Auteur", book.auteur ?? "Inconnu"),
-            _detailLine("Année", book.datePub ?? "N/A"),
-            _detailLine("Étagère", book.positionLigne.toString()),
-            _detailLine("Colonne", book.positionColonne.toString()),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _editBook(book);
-            },
-            child: const Text("Modifier"),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _deleteBook(book);
-            },
-            child: const Text("Supprimer"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Fermer"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _detailLine(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Text("$label : $value"),
-    );
-  }
-
-  // ================= CRUD =================
-
-  Future<void> _deleteBook(Livre book) async {
-    if (_token == null || book.livreId == null) return;
-    await _livreService.supprimerLivre(_token!, book.livreId!);
-    await _loadBooks();
-  }
-
-  void _editBook(Livre book) {
-    final titleCtrl = TextEditingController(text: book.titre);
-    final authorCtrl = TextEditingController(text: book.auteur ?? "");
-    final yearCtrl = TextEditingController(text: book.datePub ?? "");
-    final shelfCtrl =
-    TextEditingController(text: book.positionLigne.toString());
-    final colCtrl =
-    TextEditingController(text: book.positionColonne.toString());
+    if (_token == null) return;
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Modifier le livre"),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: "Titre")),
-              TextField(controller: authorCtrl, decoration: const InputDecoration(labelText: "Auteur")),
-              TextField(controller: yearCtrl, decoration: const InputDecoration(labelText: "Année")),
-              TextField(controller: shelfCtrl, decoration: const InputDecoration(labelText: "Étagère")),
-              TextField(controller: colCtrl, decoration: const InputDecoration(labelText: "Colonne")),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
-          ElevatedButton(
-            onPressed: () async {
-              final updated = Livre(
-                livreId: book.livreId,
-                biblioId: book.biblioId,
-                titre: titleCtrl.text.trim(),
-                auteur: authorCtrl.text.trim(),
-                datePub: yearCtrl.text.trim(),
-                positionLigne: int.tryParse(shelfCtrl.text) ?? book.positionLigne,
-                positionColonne: int.tryParse(colCtrl.text) ?? book.positionColonne,
-              );
-              await _livreService.modifierLivre(_token!, updated);
-              if (!mounted) return;
-              Navigator.pop(context);
-              await _loadBooks();
-            },
-            child: const Text("Sauvegarder"),
-          ),
-        ],
+      builder: (_) => BookDetailsDialog(
+        livre: book,
+        token: _token!,
+        onBookUpdated: () async {
+          await _loadBooks();
+        },
       ),
     );
   }
 
   // ================= ADD BOOK =================
-
   void _addLivre() {
     String titre = "";
     String auteur = "";
@@ -248,16 +220,36 @@ class _ListeLivresState extends State<ListeLivres> {
         content: SingleChildScrollView(
           child: Column(
             children: [
-              TextField(decoration: const InputDecoration(labelText: "Titre *"), onChanged: (v) => titre = v),
-              TextField(decoration: const InputDecoration(labelText: "Auteur"), onChanged: (v) => auteur = v),
-              TextField(decoration: const InputDecoration(labelText: "Année"), onChanged: (v) => datePub = v),
-              TextField(decoration: const InputDecoration(labelText: "Étagère"), onChanged: (v) => positionLigne = int.tryParse(v) ?? 1),
-              TextField(decoration: const InputDecoration(labelText: "Colonne"), onChanged: (v) => positionColonne = int.tryParse(v) ?? 1),
+              TextField(
+                decoration: const InputDecoration(labelText: "Titre *"),
+                onChanged: (v) => titre = v,
+              ),
+              TextField(
+                decoration: const InputDecoration(labelText: "Auteur"),
+                onChanged: (v) => auteur = v,
+              ),
+              TextField(
+                decoration: const InputDecoration(labelText: "Année"),
+                onChanged: (v) => datePub = v,
+              ),
+              TextField(
+                decoration: const InputDecoration(labelText: "Étagère"),
+                onChanged: (v) =>
+                positionLigne = int.tryParse(v) ?? 1,
+              ),
+              TextField(
+                decoration: const InputDecoration(labelText: "Colonne"),
+                onChanged: (v) =>
+                positionColonne = int.tryParse(v) ?? 1,
+              ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Annuler"),
+          ),
           ElevatedButton(
             onPressed: () async {
               if (titre.isEmpty || _token == null) return;
@@ -285,36 +277,33 @@ class _ListeLivresState extends State<ListeLivres> {
 }
 
 // ================= BOOK WIDGET =================
-
 class _BookWidget extends StatelessWidget {
   final Livre book;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final bool isSelected;
 
-  const _BookWidget({required this.book, required this.onTap});
+  const _BookWidget({
+    required this.book,
+    required this.onTap,
+    required this.onLongPress,
+    required this.isSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
-        width: 120,
-        margin: const EdgeInsets.only(right: 12),
+        width: 30,
+        margin: const EdgeInsets.only(right: 2),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade300),
+          border: isSelected
+              ? Border.all(color: Colors.teal, width: 2)
+              : null,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: book.couvertureUrl != null
-              ? Image.network(
-            book.couvertureUrl!,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) =>
-            const Icon(Icons.menu_book, size: 50),
-          )
-              : const Icon(Icons.menu_book, size: 50),
-        ),
+        child: BookCoverWidget(livre: book),
       ),
     );
   }

@@ -50,7 +50,6 @@ class BiblioScanApp extends StatelessWidget {
         '/home': (context) => const HomePage(),
         '/login': (context) => const LoginPage(),
         '/accesbib': (context) => const AccesBib(),
-        //'/listeLivres': (context) => const ListeLivres(),
       },
     );
   }

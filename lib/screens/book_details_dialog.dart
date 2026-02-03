@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../services/livre_services.dart';
 import '../services/bib_services.dart';
 
+
 class BookDetailsDialog extends StatefulWidget {
   final Livre livre;
   final String token;
@@ -56,6 +57,45 @@ class _BookDetailsDialogState extends State<BookDetailsDialog> {
     }
   }
 
+
+  Future<void> _deleteBook() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Supprimer le livre ?"),
+        content: const Text(
+            "Voulez-vous vraiment supprimer ce livre définitivement ?"),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(_, false),
+              child: const Text("Annuler")),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(_, true),
+              child: const Text("Supprimer")),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final livreService = LivreService();
+      final ok = await livreService.supprimerLivre(
+          widget.token, widget.livre.livreId!);
+
+      if (ok) {
+        if (!context.mounted) return;
+        Navigator.pop(context); // Ferme BookDetailsDialog
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("✅ Livre supprimé")));
+        widget.onBookUpdated();
+      } else {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("❌ Échec de la suppression")));
+      }
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return BackdropFilter(
@@ -90,6 +130,11 @@ class _BookDetailsDialogState extends State<BookDetailsDialog> {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: _deleteBook,
+            tooltip: "Supprimer le livre",
+          ),
           TextButton(
             style: AppButtonStyles.text,
             onPressed: () => Navigator.of(context).pop(),
