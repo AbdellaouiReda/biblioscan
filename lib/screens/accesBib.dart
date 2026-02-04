@@ -9,10 +9,10 @@ import '../services/bib_services.dart';
 import '../services/auth_service.dart';
 import '../services/livre_services.dart';
 
-
 import 'listeLivres.dart';
 import 'camera.dart';
 import 'book_search_screen.dart';
+import 'settings_page.dart'; // 🔹 Page des paramètres
 
 class AccesBib extends StatefulWidget {
   const AccesBib({super.key});
@@ -56,7 +56,8 @@ class _AccesBibState extends State<AccesBib> {
       if (!mounted) return;
       setState(() => bibliotheques = []);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
+        const SnackBar(
+            content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
       );
       return;
     }
@@ -86,8 +87,10 @@ class _AccesBibState extends State<AccesBib> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.background,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: const Text("Nouvelle bibliothèque", style: AppTextStyles.title),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title:
+              const Text("Nouvelle bibliothèque", style: AppTextStyles.title),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -97,13 +100,15 @@ class _AccesBibState extends State<AccesBib> {
               ),
               const SizedBox(height: 8),
               TextField(
-                decoration: const InputDecoration(labelText: "Nombre d'étagères"),
+                decoration:
+                    const InputDecoration(labelText: "Nombre d'étagères"),
                 keyboardType: TextInputType.number,
                 onChanged: (val) => rows = int.tryParse(val) ?? 1,
               ),
               const SizedBox(height: 8),
               TextField(
-                decoration: const InputDecoration(labelText: "Nombre de colonnes"),
+                decoration:
+                    const InputDecoration(labelText: "Nombre de colonnes"),
                 keyboardType: TextInputType.number,
                 onChanged: (val) => columns = int.tryParse(val) ?? 1,
               ),
@@ -121,14 +126,19 @@ class _AccesBibState extends State<AccesBib> {
                 if (name.isEmpty) return;
                 if (_token == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
+                    const SnackBar(
+                        content: Text(
+                            "❌ Token manquant. Veuillez vous reconnecter.")),
                   );
                   return;
                 }
                 try {
                   // ✅ Appel via la classe service
                   final ok = await _bibService.ajouterBibliotheque(
-                    _token!, name, rows, columns,
+                    _token!,
+                    name,
+                    rows,
+                    columns,
                   );
                   if (ok) {
                     if (!mounted) return;
@@ -140,7 +150,9 @@ class _AccesBibState extends State<AccesBib> {
                   } else {
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("❌ Échec de l'ajout de la bibliothèque.")),
+                      const SnackBar(
+                          content:
+                              Text("❌ Échec de l'ajout de la bibliothèque.")),
                     );
                   }
                 } catch (e) {
@@ -192,16 +204,17 @@ class _AccesBibState extends State<AccesBib> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.camera_alt, color: AppColors.primary),
+                  leading:
+                      const Icon(Icons.camera_alt, color: AppColors.primary),
                   title: const Text(
                     "Scanner avec la caméra",
                     style: AppTextStyles.subtitle,
                   ),
-
                   onTap: () async {
                     // mémorise la biblio active pour la caméra / liste
                     if (biblio.biblioId != null) {
-                      await prefs?.setInt('current_biblio_id', biblio.biblioId!);
+                      await prefs?.setInt(
+                          'current_biblio_id', biblio.biblioId!);
                     }
                     await prefs?.setString('current_biblio_name', biblio.nom);
                     Navigator.pop(context);
@@ -230,7 +243,8 @@ class _AccesBibState extends State<AccesBib> {
   Future<void> _deleteSelected() async {
     if (_token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
+        const SnackBar(
+            content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
       );
       return;
     }
@@ -263,7 +277,8 @@ class _AccesBibState extends State<AccesBib> {
     try {
       if (_token == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
+          const SnackBar(
+              content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
         );
         return;
       }
@@ -280,8 +295,8 @@ class _AccesBibState extends State<AccesBib> {
     if (!mounted) return;
     Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
     ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("👋 Déconnecté avec succès")),
-        );
+      const SnackBar(content: Text("👋 Déconnecté avec succès")),
+    );
   }
 
   @override
@@ -317,12 +332,22 @@ class _AccesBibState extends State<AccesBib> {
               tooltip: "Rechercher un livre dans le profil",
               onPressed: () {
                 Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const BookSearchScreen(),
-                    ),
-                    );
-                },
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const BookSearchScreen(),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.settings, color: AppColors.textLight),
+              tooltip: "Paramètres",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                );
+              },
             ),
             IconButton(
               icon: const Icon(Icons.logout, color: AppColors.textLight),
@@ -341,7 +366,8 @@ class _AccesBibState extends State<AccesBib> {
                 child: TextField(
                   decoration: InputDecoration(
                     hintText: "Rechercher une bibliothèque...",
-                    prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                    prefixIcon:
+                        const Icon(Icons.search, color: AppColors.primary),
                     filled: true,
                     fillColor: AppColors.background,
                     border: OutlineInputBorder(
@@ -355,88 +381,87 @@ class _AccesBibState extends State<AccesBib> {
             Expanded(
               child: filteredLibraries.isEmpty
                   ? const Center(
-                child: Text(
-                  "Aucune bibliothèque trouvée",
-                  style: AppTextStyles.subtitle,
-                ),
-              )
-                  : GridView.builder(
-                padding: const EdgeInsets.all(12),
-                gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.1,
-                ),
-                itemCount: filteredLibraries.length,
-                itemBuilder: (context, i) {
-                  final biblio = filteredLibraries[i];
-                  final isSelected = _selectedIndexes.contains(i);
-                  return GestureDetector(
-                    onLongPress: () {
-                      setState(() {
-                        _selectionMode = true;
-                        _selectedIndexes.add(i);
-                      });
-                    },
-                    onTap: () {
-                      if (_selectionMode) {
-                        setState(() {
-                          if (isSelected) {
-                            _selectedIndexes.remove(i);
-                            if (_selectedIndexes.isEmpty) {
-                              _selectionMode = false;
-                            }
-                          } else {
-                            _selectedIndexes.add(i);
-                          }
-                        });
-                      } else {
-                        _openLibrary(biblio);
-                      }
-                    },
-                    child: Container(
-                      decoration: isSelected
-                          ? AppCardStyles.selected
-                          : AppCardStyles.base,
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.library_books,
-                              color: AppColors.primary, size: 40),
-                          const SizedBox(height: 8),
-                          Text(
-                            biblio.nom,
-                            textAlign: TextAlign.center,
-                            style:
-                            AppTextStyles.title.copyWith(fontSize: 18),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "${biblio.nbLignes} étagères • ${biblio.nbColonnes} colonnes",
-                            style: AppTextStyles.subtitle,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                      child: Text(
+                        "Aucune bibliothèque trouvée",
+                        style: AppTextStyles.subtitle,
                       ),
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(12),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1.1,
+                      ),
+                      itemCount: filteredLibraries.length,
+                      itemBuilder: (context, i) {
+                        final biblio = filteredLibraries[i];
+                        final isSelected = _selectedIndexes.contains(i);
+                        return GestureDetector(
+                          onLongPress: () {
+                            setState(() {
+                              _selectionMode = true;
+                              _selectedIndexes.add(i);
+                            });
+                          },
+                          onTap: () {
+                            if (_selectionMode) {
+                              setState(() {
+                                if (isSelected) {
+                                  _selectedIndexes.remove(i);
+                                  if (_selectedIndexes.isEmpty) {
+                                    _selectionMode = false;
+                                  }
+                                } else {
+                                  _selectedIndexes.add(i);
+                                }
+                              });
+                            } else {
+                              _openLibrary(biblio);
+                            }
+                          },
+                          child: Container(
+                            decoration: isSelected
+                                ? AppCardStyles.selected
+                                : AppCardStyles.base,
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.library_books,
+                                    color: AppColors.primary, size: 40),
+                                const SizedBox(height: 8),
+                                Text(
+                                  biblio.nom,
+                                  textAlign: TextAlign.center,
+                                  style: AppTextStyles.title
+                                      .copyWith(fontSize: 18),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "${biblio.nbLignes} étagères • ${biblio.nbColonnes} colonnes",
+                                  style: AppTextStyles.subtitle,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
       ),
       floatingActionButton: !_selectionMode
           ? FloatingActionButton(
-        backgroundColor: AppColors.primary,
-        onPressed: _addLibrary,
-        child: const Icon(Icons.add, color: AppColors.textLight),
-      )
+              backgroundColor: AppColors.primary,
+              onPressed: _addLibrary,
+              child: const Icon(Icons.add, color: AppColors.textLight),
+            )
           : null,
     );
   }
 }
-
