@@ -8,7 +8,7 @@ class Bibliotheque {
 
   Bibliotheque({
     this.biblioId,
-    required this.userId,
+    this.userId,
     required this.nom,
     required this.nbLignes,
     required this.nbColonnes,

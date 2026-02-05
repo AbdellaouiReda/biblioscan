@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'accesBib.dart';
-import '../services/auth_service.dart'; // 🔹 Import du service
+import '../services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,9 +14,8 @@ class _LoginPageState extends State<LoginPage> {
   final _user = TextEditingController();
   final _pwd = TextEditingController();
   bool _obscure = true;
-  bool _isLoading = false; // 🔹 Indique si la requête est en cours
+  bool _isLoading = false;
 
-  // ✅ Singleton AuthService
   final AuthService _authService = AuthService();
 
   @override
@@ -26,7 +25,6 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  /// 🔹 Tentative de connexion avec AuthService
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -37,12 +35,12 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = false);
 
     if (success) {
-      // ✅ User et token déjà stockés dans SharedPreferences par AuthService
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const AccesBib()),
-      );
+      // ✅ MODIFICATION ICI : On utilise la route nommée pour activer le TutoWrapper
+      // pushReplacementNamed détruit la page de login et affiche AccesBib avec son tuto
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/accesbib');
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Échec de la connexion ❌')),
       );
@@ -104,8 +102,10 @@ class _LoginPageState extends State<LoginPage> {
                       style: AppButtonStyles.elevated,
                       onPressed: _isLoading ? null : _login,
                       child: _isLoading
-                          ? const CircularProgressIndicator(
-                        color: Colors.white,
+                          ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                           : const Text('Se connecter'),
                     ),

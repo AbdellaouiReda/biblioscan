@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image/image.dart' as img;
-import '../models/Livre.dart';
+import '../models/livre.dart';
 import '../theme/app_theme.dart';
 import '../services/camera_service.dart';
 import 'listeLivres.dart';
@@ -11,7 +11,7 @@ import '../models/bibliotheque.dart';
 
 enum CameraAspect { ratio169, ratio11 }
 
-// 🔹 Dimensions globales du cadre de scan
+// Dimensions du cadre de scan
 const double kScanFrameWidth = 300.0;
 const double kScanFrameHeight = 280.0;
 
@@ -39,16 +39,9 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
   late List<CameraDescription> _cameras;
   bool _isInitialized = false;
 
-  bool _isRecording = false;
-  bool _isVideoMode = true;
-  FlashMode _flashMode = FlashMode.off;
-
-  CameraAspect _currentAspect = CameraAspect.ratio169;
-
+  bool _isVideoMode = false;
   int selectedRow = 1;
   int selectedColumn = 1;
-
-  List<Livre> scannedBooks = [];
 
   double _zoomLevel = 1.0;
   double _maxZoom = 1.0;
@@ -59,13 +52,11 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
   bool _showPop = false;
 
   String? _token;
-  String? _biblioId;
   SharedPreferences? _prefs;
 
   @override
   void initState() {
     super.initState();
-    _biblioId = widget.biblioId;
     _initCamera();
 
     _popController = AnimationController(
@@ -92,15 +83,12 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
     );
     await _controller.initialize();
     _maxZoom = await _controller.getMaxZoomLevel();
-    await _controller.setFlashMode(FlashMode.off);
     setState(() => _isInitialized = true);
   }
 
   @override
   void dispose() {
-    if (_controller.value.isInitialized) {
-      _controller.dispose();
-    }
+    _controller.dispose();
     _popController.dispose();
     super.dispose();
   }
@@ -108,40 +96,25 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
   Future<void> _capture() async {
     try {
       final XFile image = await _controller.takePicture();
-
-      // 🔹 Cropper l'image selon le cadre de scan
       final croppedImage = await _cropImageToScanArea(image.path);
 
-      setState(() {
-        _lastThumbnail = croppedImage;
-      });
+      setState(() => _lastThumbnail = croppedImage);
 
       final token = _token;
-      final biblioId = widget.biblioId != null ? int.tryParse(widget.biblioId!) ?? 0 : 0;
+      final bId = widget.biblioId != null ? int.tryParse(widget.biblioId!) ?? 0 : 0;
 
-      if (token != null && biblioId > 0) {
-        final (uploadRes, detectRes) = await _camService.sendImageAndDetect(
+      if (token != null && bId > 0) {
+        await _camService.sendImageAndDetect(
           imagePath: croppedImage.path,
-          biblioId: biblioId,
+          biblioId: bId,
           positionLigne: selectedRow,
           positionColonne: selectedColumn,
           bearerToken: token,
         );
-
-        print("✅ Upload: $uploadRes");
-        print("🔎 Detect: $detectRes");
-
-        final annotatedUrl = detectRes?["annotated_image"];
-        final originalUrl = detectRes?["original_image"];
-        print("🖼️ Annotated: $annotatedUrl");
-        print("🖼️ Original: $originalUrl");
-      } else {
-        print("⚠ Token ou biblioId invalide !");
       }
-
       _triggerPopMessage();
     } catch (e) {
-      print("⚠️ Erreur lors de la capture ou de l'envoi : $e");
+      debugPrint("⚠️ Erreur capture : $e");
     }
   }
 
@@ -150,25 +123,17 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
     final imageBytes = await imageFile.readAsBytes();
     final originalImage = img.decodeImage(imageBytes)!;
 
-    // Dimensions de l'écran
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    // Position du cadre (centré)
-    final scanLeft = (screenWidth - kScanFrameWidth) / 2;
-    final scanTop = (screenHeight - kScanFrameHeight) / 2;
-
-    // Ratio entre l'image et l'écran
     final scaleX = originalImage.width / screenWidth;
     final scaleY = originalImage.height / screenHeight;
 
-    // Coordonnées de crop dans l'image originale
-    final cropX = (scanLeft * scaleX).toInt();
-    final cropY = (scanTop * scaleY).toInt();
     final cropWidth = (kScanFrameWidth * scaleX).toInt();
     final cropHeight = (kScanFrameHeight * scaleY).toInt();
+    final cropX = ((screenWidth - kScanFrameWidth) / 2 * scaleX).toInt();
+    final cropY = ((screenHeight - kScanFrameHeight) / 2 * scaleY).toInt();
 
-    // Cropper l'image
     final croppedImage = img.copyCrop(
       originalImage,
       x: cropX,
@@ -177,10 +142,7 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
       height: cropHeight,
     );
 
-    // Rotation de 90° vers la droite
     final rotatedImage = img.copyRotate(croppedImage, angle: 90);
-
-    // Sauvegarder l'image croppée et pivotée
     final croppedPath = imagePath.replaceAll('.jpg', '_cropped.jpg');
     final croppedFile = File(croppedPath);
     await croppedFile.writeAsBytes(img.encodeJpg(rotatedImage));
@@ -191,8 +153,8 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
   void _triggerPopMessage() async {
     setState(() => _showPop = true);
     _popController.forward(from: 0);
-    await Future.delayed(const Duration(seconds: 1));
-    setState(() => _showPop = false);
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => _showPop = false);
   }
 
   void _switchCamera() {
@@ -204,76 +166,35 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
     _initCamera(newCamera);
   }
 
-  void _toggleMode() => setState(() => _isVideoMode = !_isVideoMode);
-
-  void _toggleFlash() async {
-    if (_isVideoMode) {
-      _flashMode =
-      _flashMode == FlashMode.torch ? FlashMode.off : FlashMode.torch;
-    } else {
-      if (_flashMode == FlashMode.auto) {
-        _flashMode = FlashMode.always;
-      } else if (_flashMode == FlashMode.always) {
-        _flashMode = FlashMode.off;
-      } else {
-        _flashMode = FlashMode.auto;
-      }
-    }
-    await _controller.setFlashMode(_flashMode);
-    setState(() {});
-  }
-
-  void _toggleAspect() {
-    setState(() {
-      _currentAspect = _currentAspect == CameraAspect.ratio169
-          ? CameraAspect.ratio11
-          : CameraAspect.ratio169;
-    });
-  }
-
   Widget _buildCameraPreview() {
     if (!_controller.value.isInitialized) return const SizedBox();
-    final preview = _currentAspect == CameraAspect.ratio11
-        ? Center(
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: CameraPreview(_controller),
-      ),
-    )
-        : SizedBox.expand(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: _controller.value.previewSize!.height,
-          height: _controller.value.previewSize!.width,
-          child: CameraPreview(_controller),
+    return Center(child: CameraPreview(_controller));
+  }
+
+  // --- LE FIX : L'OVERLAY AVEC UN VRAI TROU ---
+  Widget _buildOverlay() {
+    return SizedBox.expand(
+      child: CustomPaint(
+        painter: HolePainter(
+          width: kScanFrameWidth,
+          height: kScanFrameHeight,
         ),
       ),
     );
-
-    return GestureDetector(
-      onScaleUpdate: (details) async {
-        final zoom = (_zoomLevel * details.scale).clamp(1.0, _maxZoom);
-        setState(() => _zoomLevel = zoom);
-        await _controller.setZoomLevel(zoom);
-      },
-      child: preview,
-    );
   }
 
-  // 🔹 Widget pour le cadre de scan
-  Widget _buildScanOverlay() {
+  Widget _buildScanFrame() {
     return Center(
       child: Container(
         width: kScanFrameWidth,
         height: kScanFrameHeight,
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.white, width: 3),
+          color: Colors.transparent,
+          border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Stack(
           children: [
-            // Coins du cadre (style QR scanner)
             _buildCorner(Alignment.topLeft),
             _buildCorner(Alignment.topRight),
             _buildCorner(Alignment.bottomLeft),
@@ -288,20 +209,20 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
     return Align(
       alignment: alignment,
       child: Container(
-        width: 30,
-        height: 30,
+        width: 25,
+        height: 25,
         decoration: BoxDecoration(
           border: Border(
-            top: alignment == Alignment.topLeft || alignment == Alignment.topRight
+            top: (alignment == Alignment.topLeft || alignment == Alignment.topRight)
                 ? const BorderSide(color: Colors.greenAccent, width: 4)
                 : BorderSide.none,
-            left: alignment == Alignment.topLeft || alignment == Alignment.bottomLeft
+            bottom: (alignment == Alignment.bottomLeft || alignment == Alignment.bottomRight)
                 ? const BorderSide(color: Colors.greenAccent, width: 4)
                 : BorderSide.none,
-            right: alignment == Alignment.topRight || alignment == Alignment.bottomRight
+            left: (alignment == Alignment.topLeft || alignment == Alignment.bottomLeft)
                 ? const BorderSide(color: Colors.greenAccent, width: 4)
                 : BorderSide.none,
-            bottom: alignment == Alignment.bottomLeft || alignment == Alignment.bottomRight
+            right: (alignment == Alignment.topRight || alignment == Alignment.bottomRight)
                 ? const BorderSide(color: Colors.greenAccent, width: 4)
                 : BorderSide.none,
           ),
@@ -312,36 +233,31 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInitialized) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+    if (!_isInitialized) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
-        title: Text(
-          widget.libraryName ?? "Scanner les livres",
-          style: AppTextStyles.title.copyWith(color: AppColors.textLight),
-        ),
-        centerTitle: true,
+        title: Text(widget.libraryName ?? "Scanner", style: const TextStyle(color: Colors.white)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.book, color: Colors.white),
+            icon: const Icon(Icons.list_alt, color: Colors.white),
             onPressed: () {
-              if (_biblioId != null) {
-                final library = Bibliotheque(
-                  biblioId: int.tryParse(_biblioId!) ?? 0,
-                  nom: widget.libraryName ?? '',
-                  nbLignes: widget.rows,
-                  nbColonnes: widget.columns,
-                  userId: null,
-                );
+              if (widget.biblioId != null) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => ListeLivres(library: library)),
+                  MaterialPageRoute(
+                    builder: (_) => ListeLivres(
+                      library: Bibliotheque(
+                        biblioId: int.tryParse(widget.biblioId!) ?? 0,
+                        userId: 0,
+                        nom: widget.libraryName ?? '',
+                        nbLignes: widget.rows,
+                        nbColonnes: widget.columns,
+                      ),
+                    ),
+                  ),
                 );
               }
             },
@@ -350,207 +266,137 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
       ),
       body: Stack(
         children: [
-          _buildCameraPreview(),
+          _buildCameraPreview(), // La caméra au fond
+          _buildOverlay(),       // L'ombre qui entoure le cadre
+          _buildScanFrame(),     // Le cadre et les coins verts
 
-          // 🔹 Overlay sombre avec trou transparent
-          ColorFiltered(
-            colorFilter: ColorFilter.mode(
-              Colors.black.withOpacity(0.5),
-              BlendMode.srcOut,
-            ),
-            child: Stack(
-              children: [
-                Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.black,
-                    backgroundBlendMode: BlendMode.dstOut,
-                  ),
-                ),
-                Center(
-                  child: Container(
-                    width: kScanFrameWidth,
-                    height: kScanFrameHeight,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 🔹 Cadre de scan
-          _buildScanOverlay(),
-
-          // 🔹 Texte d'instruction
+          // Instructions
           Positioned(
-            top: MediaQuery.of(context).size.height * 0.25,
-            left: 0,
-            right: 0,
+            top: MediaQuery.of(context).size.height * 0.18,
+            left: 0, right: 0,
             child: const Center(
               child: Text(
-                "Placez le livre dans le cadre",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  shadows: [
-                    Shadow(
-                      color: Colors.black,
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
+                "Alignez le dos du livre ici",
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
           ),
 
+          // Sélecteurs
           Positioned(
-            top: 40,
-            left: 20,
-            right: 20,
+            top: 20, left: 20, right: 20,
             child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(8),
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+              decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(15)),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Row(
-                    children: [
-                      const Text("Étagère : ",
-                          style: TextStyle(color: Colors.white)),
-                      DropdownButton<int>(
-                        dropdownColor: Colors.black87,
-                        value: selectedRow,
-                        items: List.generate(
-                          widget.rows,
-                              (i) => DropdownMenuItem(
-                            value: i + 1,
-                            child: Text(
-                              "${i + 1}",
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                        onChanged: (val) {
-                          if (val != null) setState(() => selectedRow = val);
-                        },
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      const Text("Colonne : ",
-                          style: TextStyle(color: Colors.white)),
-                      DropdownButton<int>(
-                        dropdownColor: Colors.black87,
-                        value: selectedColumn,
-                        items: List.generate(
-                          widget.columns,
-                              (i) => DropdownMenuItem(
-                            value: i + 1,
-                            child: Text(
-                              "${i + 1}",
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                        onChanged: (val) {
-                          if (val != null) setState(() => selectedColumn = val);
-                        },
-                      ),
-                    ],
-                  ),
+                  _buildDropdown("Étagère", selectedRow, widget.rows, (v) => setState(() => selectedRow = v!)),
+                  _buildDropdown("Colonne", selectedColumn, widget.columns, (v) => setState(() => selectedColumn = v!)),
                 ],
               ),
             ),
           ),
 
+          // Pop-up succès
           if (_showPop)
             Center(
               child: ScaleTransition(
                 scale: _popAnimation,
                 child: Container(
-                  padding: const EdgeInsets.all(25),
-                  decoration: BoxDecoration(
-                    color: Colors.black87.withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(50),
-                  ),
-                  child: const Column(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.9), borderRadius: BorderRadius.circular(30)),
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.book, color: Colors.white, size: 40),
-                      SizedBox(height: 8),
-                      Text(
-                        "Livre détecté !",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      Icon(Icons.check_circle, color: Colors.black),
+                      SizedBox(width: 10),
+                      Text("Scan réussi !", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
                     ],
                   ),
                 ),
               ),
             ),
 
+          // Bouton Capture
           Positioned(
-            bottom: 50,
-            left: 0,
-            right: 0,
+            bottom: 40, left: 0, right: 0,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                IconButton(
-                  icon: Icon(
-                    _isVideoMode ? Icons.photo_camera : Icons.videocam,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                  onPressed: _toggleMode,
-                ),
+                const SizedBox(width: 48),
                 GestureDetector(
                   onTap: _capture,
                   child: Container(
-                    width: 75,
-                    height: 75,
+                    width: 80, height: 80,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: _isRecording ? Colors.red : Colors.white,
-                      border: Border.all(color: Colors.black, width: 2),
+                      border: Border.all(color: Colors.white, width: 5),
                     ),
+                    child: Center(child: Container(width: 60, height: 60, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.cameraswitch,
-                      color: Colors.white, size: 32),
-                  onPressed: _switchCamera,
-                ),
+                IconButton(icon: const Icon(Icons.cameraswitch, color: Colors.white, size: 32), onPressed: _switchCamera),
               ],
             ),
           ),
 
           if (_lastThumbnail != null)
             Positioned(
-              bottom: 160,
-              right: 20,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.file(
-                  _lastThumbnail!,
-                  width: 70,
-                  height: 70,
-                  fit: BoxFit.cover,
-                ),
+              bottom: 120, right: 30,
+              child: Container(
+                decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 2), borderRadius: BorderRadius.circular(8)),
+                child: ClipRRect(borderRadius: BorderRadius.circular(6), child: Image.file(_lastThumbnail!, width: 60, height: 60, fit: BoxFit.cover)),
               ),
             ),
         ],
       ),
     );
   }
+
+  Widget _buildDropdown(String label, int value, int max, ValueChanged<int?> onChanged) {
+    return Row(
+      children: [
+        Text("$label: ", style: const TextStyle(color: Colors.white, fontSize: 13)),
+        DropdownButton<int>(
+          value: value,
+          dropdownColor: Colors.black87,
+          underline: const SizedBox(),
+          items: List.generate(max, (i) => DropdownMenuItem(value: i + 1, child: Text("${i + 1}", style: const TextStyle(color: Colors.white)))),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+// --- LE PAINTER QUI PERCE LE TROU ---
+class HolePainter extends CustomPainter {
+  final double width;
+  final double height;
+
+  HolePainter({required this.width, required this.height});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.black.withOpacity(0.65);
+
+    final rect = Rect.fromCenter(
+      center: Offset(size.width / 2, size.height / 2),
+      width: width,
+      height: height,
+    );
+
+    canvas.drawPath(
+      Path.combine(
+        PathOperation.difference,
+        Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
+        Path()..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(12))),
+      ),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

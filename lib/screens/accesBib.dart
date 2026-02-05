@@ -4,15 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/bibliotheque.dart';
 import '../theme/app_theme.dart';
 
-// Services sous forme de classes (comme dans ton autre écran)
 import '../services/bib_services.dart';
 import '../services/auth_service.dart';
-import '../services/livre_services.dart';
-
-
-import 'listeLivres.dart';
-import 'camera.dart';
-import 'book_search_screen.dart';
 
 class AccesBib extends StatefulWidget {
   const AccesBib({super.key});
@@ -26,7 +19,6 @@ class _AccesBibState extends State<AccesBib> {
   String? _token;
   int? _userId;
 
-  // ✅ Utilise une instance du service
   final _bibService = BibliothequeService();
   final _authService = AuthService();
 
@@ -62,7 +54,6 @@ class _AccesBibState extends State<AccesBib> {
     }
 
     try {
-      // ✅ Appel via la classe service
       final libs = await _bibService.listerBibliotheques(_token!);
       if (!mounted) return;
       setState(() => bibliotheques = libs);
@@ -75,7 +66,6 @@ class _AccesBibState extends State<AccesBib> {
     }
   }
 
-  // 🔧 Ajout d'une bibliothèque (appel serveur)
   void _addLibrary() {
     String name = "";
     int rows = 1;
@@ -158,7 +148,6 @@ class _AccesBibState extends State<AccesBib> {
     );
   }
 
-  // 📖 Ouvrir une bibliothèque
   void _openLibrary(Bibliotheque biblio) {
     if (_selectionMode) return;
 
@@ -177,44 +166,35 @@ class _AccesBibState extends State<AccesBib> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.list, color: AppColors.primary),
-                  title: const Text(
-                    "Voir / Modifier les livres",
-                    style: AppTextStyles.subtitle,
-                  ),
+                  title: const Text("Voir / Modifier les livres", style: AppTextStyles.subtitle),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ListeLivres(library: biblio),
-                      ),
-                    );
+                    // ✅ AU LIEU DE Navigator.push(MaterialPageRoute...)
+                    Navigator.pushNamed(context, '/listeLivres', arguments: biblio);
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.camera_alt, color: AppColors.primary),
-                  title: const Text(
-                    "Scanner avec la caméra",
-                    style: AppTextStyles.subtitle,
-                  ),
-
+                  title: const Text("Scanner avec la caméra", style: AppTextStyles.subtitle),
                   onTap: () async {
-                    // mémorise la biblio active pour la caméra / liste
                     if (biblio.biblioId != null) {
                       await prefs?.setInt('current_biblio_id', biblio.biblioId!);
                     }
                     await prefs?.setString('current_biblio_name', biblio.nom);
+
+                    if (!mounted) return;
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => Camera(
-                          rows: biblio.nbLignes,
-                          columns: biblio.nbColonnes,
-                          libraryName: biblio.nom,
-                          biblioId: biblio.biblioId?.toString(),
-                        ),
-                      ),
+
+                    // ✅ MODIFICATION ICI : Utilise pushNamed pour passer par le TutoWrapper
+                    Navigator.pushNamed(
+                        context,
+                        '/camera',
+                        arguments: {
+                          'rows': biblio.nbLignes,
+                          'columns': biblio.nbColonnes,
+                          'libraryName': biblio.nom,
+                          'biblioId': biblio.biblioId?.toString(),
+                        }
                     );
                   },
                 ),
@@ -240,7 +220,6 @@ class _AccesBibState extends State<AccesBib> {
     try {
       for (final b in toDelete) {
         if (b.biblioId == null) continue;
-        // ✅ Appel via la classe service
         await _bibService.supprimerBibliotheque(_token!, b.biblioId!);
       }
       if (!mounted) return;
@@ -258,7 +237,6 @@ class _AccesBibState extends State<AccesBib> {
     }
   }
 
-  // 🚪 Déconnexion → retour accueil
   Future<void> _logout() async {
     try {
       if (_token == null) {
@@ -268,10 +246,8 @@ class _AccesBibState extends State<AccesBib> {
         return;
       }
 
-      // 🔹 Appel du service de déconnexion serveur
       _authService.logout(_token);
 
-      // 🔹 Nettoyage local
       print('✅ Déconnexion réussie (serveur + local)');
     } catch (e) {
       print('❌ Erreur lors de la déconnexion : $e');
@@ -316,13 +292,8 @@ class _AccesBibState extends State<AccesBib> {
               icon: const Icon(Icons.person_search, color: AppColors.textLight),
               tooltip: "Rechercher un livre dans le profil",
               onPressed: () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const BookSearchScreen(),
-                    ),
-                    );
-                },
+                Navigator.pushNamed(context, '/search');
+              },
             ),
             IconButton(
               icon: const Icon(Icons.logout, color: AppColors.textLight),
