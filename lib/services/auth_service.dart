@@ -111,4 +111,55 @@ class AuthService {
       print('❌ Erreur logout: $e');
     }
   }
+
+  /// 🔹 Récupère l'utilisateur connecté (depuis mémoire ou stockage)
+  Future<User?> getCurrentUser() async {
+    if (_currentUser != null) return _currentUser;
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final userId = prefs.getInt('userId');
+    final username = prefs.getString('username');
+    final password = prefs.getString('password');
+
+    if (token == null || userId == null) return null;
+
+    _currentUser = User(
+      userId: userId,
+      username: username ?? '',
+      password: password ?? '',
+      token: token,
+    );
+
+    return _currentUser;
+  }
+
+  /// 🔹 App quittée → compte à rebours de 10 min
+  Future<void> appQuit() async {
+    _isAppOpen = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(
+      'tokenExpiry',
+      DateTime.now().add(const Duration(minutes: 10)).millisecondsSinceEpoch,
+    );
+  }
+
+  /// 🔹 App ouverte
+  void appOpen() {
+    _isAppOpen = true;
+  }
+
+  /// 🔹 Récupère le token stocké
+  Future<String?> getToken() async {
+    if (_currentUser != null) return _currentUser!.token;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+  /// 🔹 Récupère le userId stocké
+  Future<int?> getUserId() async {
+    if (_currentUser != null) return _currentUser!.userId;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('userId');
+  }
 }

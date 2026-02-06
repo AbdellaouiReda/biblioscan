@@ -7,12 +7,12 @@ import '../theme/app_theme.dart';
 // Services sous forme de classes (comme dans ton autre écran)
 import '../services/bib_services.dart';
 import '../services/auth_service.dart';
-
-
+import '../services/livre_services.dart';
 
 import 'listeLivres.dart';
 import 'camera.dart';
 import 'book_search_screen.dart';
+import 'settings_page.dart'; // 🔹 Page des paramètres
 
 class AccesBib extends StatefulWidget {
   const AccesBib({super.key});
@@ -47,7 +47,7 @@ class _AccesBibState extends State<AccesBib> {
     _token = prefs!.getString('token');
     _userId = prefs!.getInt('userId');
     if (!mounted) return;
-    setState(() {});
+    setState(() {}); // rafraîchit l'UI
     await _refreshLibraries();
   }
 
@@ -56,7 +56,8 @@ class _AccesBibState extends State<AccesBib> {
       if (!mounted) return;
       setState(() => bibliotheques = []);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
+        const SnackBar(
+            content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
       );
       return;
     }
@@ -86,8 +87,10 @@ class _AccesBibState extends State<AccesBib> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.background,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: const Text("Nouvelle bibliothèque", style: AppTextStyles.title),
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title:
+          const Text("Nouvelle bibliothèque", style: AppTextStyles.title),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -97,13 +100,15 @@ class _AccesBibState extends State<AccesBib> {
               ),
               const SizedBox(height: 8),
               TextField(
-                decoration: const InputDecoration(labelText: "Nombre d'étagères"),
+                decoration:
+                const InputDecoration(labelText: "Nombre d'étagères"),
                 keyboardType: TextInputType.number,
                 onChanged: (val) => rows = int.tryParse(val) ?? 1,
               ),
               const SizedBox(height: 8),
               TextField(
-                decoration: const InputDecoration(labelText: "Nombre de colonnes"),
+                decoration:
+                const InputDecoration(labelText: "Nombre de colonnes"),
                 keyboardType: TextInputType.number,
                 onChanged: (val) => columns = int.tryParse(val) ?? 1,
               ),
@@ -121,14 +126,19 @@ class _AccesBibState extends State<AccesBib> {
                 if (name.isEmpty) return;
                 if (_token == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
+                    const SnackBar(
+                        content: Text(
+                            "❌ Token manquant. Veuillez vous reconnecter.")),
                   );
                   return;
                 }
                 try {
                   // ✅ Appel via la classe service
                   final ok = await _bibService.ajouterBibliotheque(
-                    _token!, name, rows, columns,
+                    _token!,
+                    name,
+                    rows,
+                    columns,
                   );
                   if (ok) {
                     if (!mounted) return;
@@ -140,7 +150,9 @@ class _AccesBibState extends State<AccesBib> {
                   } else {
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("❌ Échec de l'ajout de la bibliothèque.")),
+                      const SnackBar(
+                          content:
+                          Text("❌ Échec de l'ajout de la bibliothèque.")),
                     );
                   }
                 } catch (e) {
@@ -192,16 +204,17 @@ class _AccesBibState extends State<AccesBib> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.camera_alt, color: AppColors.primary),
+                  leading:
+                  const Icon(Icons.camera_alt, color: AppColors.primary),
                   title: const Text(
                     "Scanner avec la caméra",
                     style: AppTextStyles.subtitle,
                   ),
-
                   onTap: () async {
                     // mémorise la biblio active pour la caméra / liste
                     if (biblio.biblioId != null) {
-                      await prefs?.setInt('current_biblio_id', biblio.biblioId!);
+                      await prefs?.setInt(
+                          'current_biblio_id', biblio.biblioId!);
                     }
                     await prefs?.setString('current_biblio_name', biblio.nom);
                     Navigator.pop(context);
@@ -230,7 +243,8 @@ class _AccesBibState extends State<AccesBib> {
   Future<void> _deleteSelected() async {
     if (_token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
+        const SnackBar(
+            content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
       );
       return;
     }
@@ -263,7 +277,8 @@ class _AccesBibState extends State<AccesBib> {
     try {
       if (_token == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
+          const SnackBar(
+              content: Text("❌ Token manquant. Veuillez vous reconnecter.")),
         );
         return;
       }
@@ -280,8 +295,8 @@ class _AccesBibState extends State<AccesBib> {
     if (!mounted) return;
     Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
     ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("👋 Déconnecté avec succès")),
-        );
+      const SnackBar(content: Text("👋 Déconnecté avec succès")),
+    );
   }
 
   @override
@@ -317,12 +332,22 @@ class _AccesBibState extends State<AccesBib> {
               tooltip: "Rechercher un livre dans le profil",
               onPressed: () {
                 Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const BookSearchScreen(),
-                    ),
-                    );
-                },
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const BookSearchScreen(),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.settings, color: AppColors.textLight),
+              tooltip: "Paramètres",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                );
+              },
             ),
             IconButton(
               icon: const Icon(Icons.logout, color: AppColors.textLight),
@@ -341,7 +366,8 @@ class _AccesBibState extends State<AccesBib> {
                 child: TextField(
                   decoration: InputDecoration(
                     hintText: "Rechercher une bibliothèque...",
-                    prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                    prefixIcon:
+                    const Icon(Icons.search, color: AppColors.primary),
                     filled: true,
                     fillColor: AppColors.background,
                     border: OutlineInputBorder(
@@ -410,8 +436,8 @@ class _AccesBibState extends State<AccesBib> {
                           Text(
                             biblio.nom,
                             textAlign: TextAlign.center,
-                            style:
-                            AppTextStyles.title.copyWith(fontSize: 18),
+                            style: AppTextStyles.title
+                                .copyWith(fontSize: 18),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -439,4 +465,3 @@ class _AccesBibState extends State<AccesBib> {
     );
   }
 }
-

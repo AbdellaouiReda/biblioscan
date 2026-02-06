@@ -33,7 +33,7 @@ class UploadService {
 
       // 📦 Fichier image
       final multipartFile = await http.MultipartFile.fromPath(
-        'image', // 👈 vérifie que ton PHP attend bien ce nom
+        'image',
         imageFile.path,
         filename: imageFile.uri.pathSegments.last,
       );
