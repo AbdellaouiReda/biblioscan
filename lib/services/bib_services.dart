@@ -6,6 +6,7 @@ import '../models/livre.dart';
 class BibliothequeService {
   final String baseUrl = 'https://fancy-dog-formally.ngrok-free.app/bibliodb_api/';
 
+
   /// 🔹 Ajouter une bibliothèque
   Future<bool> ajouterBibliotheque(String token, String nom, int nbLignes, int nbColonnes) async {
     final response = await http.post(

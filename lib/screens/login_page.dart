@@ -62,10 +62,7 @@ class _LoginPageState extends State<LoginPage> {
         if (username != null && password != null) {
           final success = await _authService.login(username, password);
           if (success && mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const AccesBib()),
-            );
+            Navigator.pushReplacementNamed(context, '/accesbib');
           }
         }
       }

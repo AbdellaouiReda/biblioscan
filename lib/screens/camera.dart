@@ -234,7 +234,7 @@ class _CameraState extends State<Camera> with SingleTickerProviderStateMixin {
     );
 
     // Rotation de 90° vers la droite
-    final rotatedImage = img.copyRotate(croppedImage, angle: 90);
+    final rotatedImage = img.copyRotate(croppedImage, angle: 0);
 
     // Sauvegarder l'image croppée et pivotée
     final croppedPath = imagePath.replaceAll('.jpg', '_cropped.jpg');

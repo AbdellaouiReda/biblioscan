@@ -11,13 +11,15 @@ class BookCoverWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final baseUrl = "https://fancy-dog-formally.ngrok-free.app/ai/ai";
+
     return AspectRatio(
       aspectRatio: 2 / 3,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: livre.couvertureUrl != null
             ? Image.network(
-          livre.couvertureUrl!,
+          "$baseUrl${livre.couvertureUrl}",
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _placeholder(),
         )

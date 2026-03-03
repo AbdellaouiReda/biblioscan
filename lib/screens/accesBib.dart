@@ -195,12 +195,7 @@ class _AccesBibState extends State<AccesBib> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ListeLivres(library: biblio),
-                      ),
-                    );
+                    Navigator.pushNamed(context, '/listeLivres', arguments: biblio);
                   },
                 ),
                 ListTile(
@@ -218,16 +213,15 @@ class _AccesBibState extends State<AccesBib> {
                     }
                     await prefs?.setString('current_biblio_name', biblio.nom);
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => Camera(
-                          rows: biblio.nbLignes,
-                          columns: biblio.nbColonnes,
-                          libraryName: biblio.nom,
-                          biblioId: biblio.biblioId?.toString(),
-                        ),
-                      ),
+                    Navigator.pushNamed(
+                        context,
+                        '/camera',
+                        arguments: {
+                          'rows': biblio.nbLignes,
+                          'columns': biblio.nbColonnes,
+                          'libraryName': biblio.nom,
+                          'biblioId': biblio.biblioId?.toString(),
+                        }
                     );
                   },
                 ),
@@ -331,12 +325,7 @@ class _AccesBibState extends State<AccesBib> {
               icon: const Icon(Icons.person_search, color: AppColors.textLight),
               tooltip: "Rechercher un livre dans le profil",
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const BookSearchScreen(),
-                  ),
-                );
+                Navigator.pushNamed(context, '/search');
               },
             ),
             IconButton(
