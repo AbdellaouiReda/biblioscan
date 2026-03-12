@@ -11,7 +11,7 @@ class BookCoverWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseUrl = "https://fancy-dog-formally.ngrok-free.app/ai/ai";
+    final baseUrl = "https://fancy-dog-formally.ngrok-free.app/";
 
     return AspectRatio(
       aspectRatio: 2 / 3,
